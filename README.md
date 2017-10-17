@@ -1,6 +1,6 @@
 # Python scripts for PhotoScan Pro
 
-These scripts are supposed to be used in PhotoScan Pro.
+These scripts are supposed to be used in PhotoScan Pro. They can be executed on PhotoScan launch automatically ([see article](https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-photoscan-professional-start)).
 
 # Contributions are welcome!
 
