@@ -9,7 +9,7 @@ from PySide2 import QtGui, QtCore, QtWidgets
 compatible_major_version = "1.3"
 found_major_version = ".".join(PhotoScan.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
-    raise Exception("Incompatible PhotoScan version: {} != {}!".format(found_major_version, compatible_major_version))
+    raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
 
 
 class MaskByColor(QtWidgets.QDialog):

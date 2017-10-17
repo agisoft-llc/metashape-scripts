@@ -29,7 +29,9 @@ def bbox_to_cs():
 
     m = m * T
     s = math.sqrt(m[0, 0] ** 2 + m[0, 1] ** 2 + m[0, 2] ** 2)  # scale factor # s = m.scale()
-    R = PhotoScan.Matrix([[m[0, 0], m[0, 1], m[0, 2]], [m[1, 0], m[1, 1], m[1, 2]], [m[2, 0], m[2, 1], m[2, 2]]])
+    R = PhotoScan.Matrix([[m[0, 0], m[0, 1], m[0, 2]],
+                          [m[1, 0], m[1, 1], m[1, 2]],
+                          [m[2, 0], m[2, 1], m[2, 2]]])
     # R = m.rotation()
 
     R = R * (1. / s)
