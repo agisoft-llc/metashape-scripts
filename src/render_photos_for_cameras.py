@@ -1,4 +1,5 @@
-# Script save model renders for all aligned cameras to the same folder where the source photos are present with the "_render" suffix.
+# Script save model renders for selected cameras (or all aligned cameras if no aligned cameras selected)
+# to the same folder where the source photos are present with the "_render" suffix.
 #
 # This is python script for PhotoScan Pro. Scripts repository: https://github.com/agisoft-llc/photoscan-scripts
 
@@ -12,6 +13,15 @@ if found_major_version != compatible_major_version:
     raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
 
 
+def get_cameras(chunk):
+    selected_cameras = [camera for camera in chunk.cameras if camera.transform and camera.selected]
+
+    if len(selected_cameras) > 0:
+        return selected_cameras
+    else:
+        return [camera for camera in chunk.cameras if camera.transform]
+
+
 def render_cameras():
     print("Script started...")
 
@@ -19,10 +29,7 @@ def render_cameras():
     if not chunk.model:
         raise Exception("No model!")
 
-    for camera in chunk.cameras:
-        if not camera.transform:
-            continue
-
+    for camera in get_cameras(chunk):
         render = chunk.model.renderImage(camera.transform, camera.sensor.calibration)
 
         photo_dir = os.path.dirname(camera.photo.path)
