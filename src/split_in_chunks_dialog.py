@@ -222,17 +222,17 @@ class SplitDlg(QtWidgets.QDialog):
                         quality = QUALITY[new_chunk.depth_maps.meta['depth/depth_downscale']]
                         filtering = FILTERING[new_chunk.depth_maps.meta['depth/depth_filter_mode']]
                         try:
-                            new_chunk.buildDenseCloud(quality=quality, filter=filtering, keep_depth=False,
-                                                      reuse_depth=reuse_depth)
+                            new_chunk.buildDepthMaps(quality=quality, filter=filtering, reuse_depth=reuse_depth)
+                            new_chunk.buildDenseCloud(keep_depth=False)
                         except RuntimeError:
                             print("Can't build dense cloud for " + chunk.label)
 
                     else:
                         reuse_depth = False
                         try:
-                            new_chunk.buildDenseCloud(quality=PhotoScan.Quality.HighQuality,
-                                                      filter=PhotoScan.FilterMode.AggressiveFiltering, keep_depth=False,
-                                                      reuse_depth=reuse_depth)
+                            new_chunk.buildDepthMaps(quality=PhotoScan.Quality.HighQuality,
+                                                     filter=PhotoScan.FilterMode.AggressiveFiltering, reuse_depth=reuse_depth)
+                            new_chunk.buildDenseCloud(keep_depth=False)
                         except RuntimeError:
                             print("Can't build dense cloud for " + chunk.label)
 
