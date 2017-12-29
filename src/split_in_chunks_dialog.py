@@ -4,7 +4,7 @@ import PhotoScan
 from PySide2 import QtGui, QtCore, QtWidgets
 
 # Checking compatibility
-compatible_major_version = "1.3"
+compatible_major_version = "1.4"
 found_major_version = ".".join(PhotoScan.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
