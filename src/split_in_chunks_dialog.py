@@ -218,9 +218,9 @@ class SplitDlg(QtWidgets.QDialog):
 
         if not chunk.transform.translation.norm():
             chunk.transform.matrix = chunk.transform.matrix
-        elif chunk.transform.translation.scale == 1:
+        elif chunk.transform.scale == 1:
             chunk.transform.matrix = chunk.transform.matrix
-        elif isIdent(chunk.transform.translation.rotation):
+        elif isIdent(chunk.transform.rotation):
             chunk.transform.matrix = chunk.transform.matrix
 
         region = chunk.region
