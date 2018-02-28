@@ -20,6 +20,29 @@ FILTERING = {"3": PhotoScan.NoFiltering,
              "1": PhotoScan.ModerateFiltering,
              "2": PhotoScan.AggressiveFiltering}
 
+MESH = {"Arbitrary": PhotoScan.SurfaceType.Arbitrary,
+        "Height Field": PhotoScan.SurfaceType.HeightField}
+
+DENSE = {"Ultra": PhotoScan.UltraQuality,
+         "High": PhotoScan.HighQuality,
+         "Medium": PhotoScan.MediumQuality,
+         "Low": PhotoScan.LowQuality,
+         "Lowest": PhotoScan.LowestQuality}
+
+
+def isIdent(matrix):
+    """
+	Check if the matrix is identity matrix
+    """
+    for i in range(matrix.size[0]):
+        for j in range(matrix.size[1]):
+            if i == j:
+                if matrix[i, j] != 1.0:
+                    return False
+            elif matrix[i, j]:
+                return False
+    return True
+
 
 class SplitDlg(QtWidgets.QDialog):
 
@@ -34,11 +57,13 @@ class SplitDlg(QtWidgets.QDialog):
         self.gridHeight = 198
 
         self.spinX = QtWidgets.QSpinBox()
-        self.spinX.setMinimum(2)
+        self.spinX.setMinimum(1)
+        self.spinX.setValue(2)
         self.spinX.setMaximum(20)
         self.spinX.setFixedSize(75, 25)
         self.spinY = QtWidgets.QSpinBox()
-        self.spinY.setMinimum(2)
+        self.spinY.setMinimum(1)
+        self.spinY.setValue(2)
         self.spinY.setMaximum(20)
         self.spinY.setFixedSize(75, 25)
 
@@ -46,9 +71,19 @@ class SplitDlg(QtWidgets.QDialog):
         self.chkMesh.setFixedSize(100, 50)
         self.chkMesh.setToolTip("Generates mesh for each cell in grid")
 
+        self.meshBox = QtWidgets.QComboBox()
+        for element in MESH.keys():
+            self.meshBox.addItem(element)
+        self.meshBox.setFixedSize(100, 25)
+
         self.chkDense = QtWidgets.QCheckBox("Build Dense Cloud")
         self.chkDense.setFixedSize(120, 50)
         self.chkDense.setWhatsThis("Builds dense cloud for each cell in grid")
+
+        self.denseBox = QtWidgets.QComboBox()
+        for element in DENSE.keys():
+            self.denseBox.addItem(element)
+        self.denseBox.setFixedSize(100, 25)
 
         self.chkMerge = QtWidgets.QCheckBox("Merge Back")
         self.chkMerge.setFixedSize(90, 50)
@@ -64,7 +99,7 @@ class SplitDlg(QtWidgets.QDialog):
 
         self.edtOvp = QtWidgets.QLineEdit()
         self.edtOvp.setPlaceholderText("0")
-        self.edtOvp.setFixedSize(100, 25)
+        self.edtOvp.setFixedSize(50, 25)
 
         self.btnQuit = QtWidgets.QPushButton("Close")
         self.btnQuit.setFixedSize(90, 50)
@@ -93,22 +128,25 @@ class SplitDlg(QtWidgets.QDialog):
         self.grid.show()
 
         layout = QtWidgets.QGridLayout()  # creating layout
-        layout.addWidget(self.spinX, 0, 0)
-        layout.addWidget(self.spinY, 0, 1)
+        layout.addWidget(self.spinX, 1, 0)
+        layout.addWidget(self.spinY, 1, 1, QtCore.Qt.AlignRight)
 
         layout.addWidget(self.chkDense, 0, 2)
         layout.addWidget(self.chkMesh, 0, 3)
         layout.addWidget(self.chkMerge, 0, 4)
 
-        layout.addWidget(self.btnP1, 3, 2)
-        layout.addWidget(self.btnQuit, 3, 3)
+        layout.addWidget(self.meshBox, 1, 3, QtCore.Qt.AlignTop)
+        layout.addWidget(self.denseBox, 1, 2, QtCore.Qt.AlignTop)
 
-        layout.addWidget(self.txtOvp, 1, 3)
-        layout.addWidget(self.edtOvp, 1, 4)
+        layout.addWidget(self.chkSave, 3, 2)
+        layout.addWidget(self.btnP1, 3, 3)
+        layout.addWidget(self.btnQuit, 3, 4)
 
-        layout.addWidget(self.chkSave, 2, 4)
+        layout.addWidget(self.txtOvp, 0, 0, QtCore.Qt.AlignRight)
+        layout.addWidget(self.edtOvp, 0, 1, QtCore.Qt.AlignLeft)
 
-        layout.addWidget(self.grid, 1, 0, 2, 2)
+        layout.addWidget(self.grid, 2, 0, 2, 2)
+        # layout.setAlignment(QtCore.Qt.AlignTop)
         self.setLayout(layout)
 
         proc_split = lambda: self.splitChunks()
@@ -172,10 +210,17 @@ class SplitDlg(QtWidgets.QDialog):
         mergeBack = self.chkMerge.isChecked()
         autosave = self.chkSave.isChecked()
 
+        quality = DENSE[self.denseBox.currentText()]
+        mesh_mode = MESH[self.meshBox.currentText()]
+
         doc = PhotoScan.app.document
         chunk = doc.chunk
 
-        if not chunk.transform.translation:
+        if not chunk.transform.translation.norm():
+            chunk.transform.matrix = chunk.transform.matrix
+        elif chunk.transform.translation.scale == 1:
+            chunk.transform.matrix = chunk.transform.matrix
+        elif isIdent(chunk.transform.translation.rotation):
             chunk.transform.matrix = chunk.transform.matrix
 
         region = chunk.region
@@ -191,9 +236,13 @@ class SplitDlg(QtWidgets.QDialog):
 
         for j in range(1, partsY + 1):  # creating new chunks and adjusting bounding box
             for i in range(1, partsX + 1):
-                new_chunk = chunk.copy(items=[PhotoScan.DataSource.DenseCloudData])
+                if not buildDense:
+                    new_chunk = chunk.copy(items=[PhotoScan.DataSource.DenseCloudData, PhotoScan.DataSource.DepthMapsData])
+                else:
+                    new_chunk = chunk.copy(items=[])
                 new_chunk.label = "Chunk " + str(i) + "\\" + str(j)
-                new_chunk.model = None
+                if new_chunk.model:
+                    new_chunk.model.clear()
 
                 new_region = PhotoScan.Region()
                 new_rot = r_rotate
@@ -219,20 +268,22 @@ class SplitDlg(QtWidgets.QDialog):
                 if buildDense:
                     if new_chunk.depth_maps:
                         reuse_depth = True
-                        quality = QUALITY[new_chunk.depth_maps.meta['depth/depth_downscale']]
-                        filtering = FILTERING[new_chunk.depth_maps.meta['depth/depth_filter_mode']]
+                        if new_chunk.depth_maps.meta['depth/depth_downscale']:
+                            quality = QUALITY[new_chunk.depth_maps.meta['depth/depth_downscale']]
+                        if new_chunk.depth_maps.meta['depth/depth_filter_mode']:
+                            filtering = FILTERING[new_chunk.depth_maps.meta['depth/depth_filter_mode']]
                         try:
                             new_chunk.buildDepthMaps(quality=quality, filter=filtering, reuse_depth=reuse_depth)
-                            new_chunk.buildDenseCloud() #keep_depth=False 
+                            new_chunk.buildDenseCloud(max_neighbors=65)  # keep_depth=False
                         except RuntimeError:
                             print("Can't build dense cloud for " + chunk.label)
 
                     else:
                         reuse_depth = False
                         try:
-                            new_chunk.buildDepthMaps(quality=PhotoScan.Quality.HighQuality,
+                            new_chunk.buildDepthMaps(quality=quality,
                                                      filter=PhotoScan.FilterMode.AggressiveFiltering, reuse_depth=reuse_depth)
-                            new_chunk.buildDenseCloud() #keep_depth=False
+                            new_chunk.buildDenseCloud(max_neighbors=65)  # keep_depth=False
                         except RuntimeError:
                             print("Can't build dense cloud for " + chunk.label)
 
@@ -242,7 +293,7 @@ class SplitDlg(QtWidgets.QDialog):
                 if buildMesh:
                     if new_chunk.dense_cloud:
                         try:
-                            new_chunk.buildModel(surface=PhotoScan.SurfaceType.HeightField,
+                            new_chunk.buildModel(surface=mesh_mode,
                                                  source=PhotoScan.DataSource.DenseCloudData,
                                                  interpolation=PhotoScan.Interpolation.EnabledInterpolation,
                                                  face_count=PhotoScan.FaceCount.HighFaceCount)
@@ -250,7 +301,7 @@ class SplitDlg(QtWidgets.QDialog):
                             print("Can't build mesh for " + chunk.label)
                     else:
                         try:
-                            new_chunk.buildModel(surface=PhotoScan.SurfaceType.HeightField,
+                            new_chunk.buildModel(surface=mesh_mode,
                                                  source=PhotoScan.DataSource.PointCloudData,
                                                  interpolation=PhotoScan.Interpolation.EnabledInterpolation,
                                                  face_count=PhotoScan.FaceCount.HighFaceCount)
@@ -260,16 +311,17 @@ class SplitDlg(QtWidgets.QDialog):
                         doc.save()
 
                 if not buildDense:
-                    new_chunk.dense_cloud = None
-
-                new_chunk.depth_maps = None
+                    if new_chunk.dense_cloud:
+                        new_chunk.dense_cloud.clear()
+                if new_chunk.depth_maps:
+                    new_chunk.depth_maps.clear()
                 # new_chunk = None
 
         if mergeBack:
             for i in range(1, len(doc.chunks)):
                 chunk = doc.chunks[i]
                 chunk.remove(chunk.cameras)
-            doc.chunks[0].model = None  # removing model from original chunk, just for case
+            doc.chunks[0].model = None  # hiding the mesh of the original chunk, just for case
             doc.mergeChunks(doc.chunks,
                             merge_dense_clouds=True, merge_models=True, merge_markers=True)  # merging all smaller chunks into single one
 
