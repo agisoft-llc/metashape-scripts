@@ -16,7 +16,6 @@
 # (Tutorial is coming)
 
 import PhotoScan
-import numpy as np
 import pathlib, shutil, math
 from PySide2 import QtGui, QtCore, QtWidgets
 
@@ -31,16 +30,14 @@ if found_major_version != compatible_major_version:
 class ModelStyleTransferDlg(QtWidgets.QDialog):
     def __init__(self, parent):
 
-        self.inited = False
-
         self.texture_size = 2048
         self.rendering_width = 2048
-        self.steps_number = 10
-        self.style_path = "Specify URL or file path to style image"
+        self.steps_number = 1000
+        self.style_path = ""
         self.style_name = "style1"
-        self.working_dir = "Specify Directory for intermidiate files"
+        self.working_dir = ""
         self.model_name = "model1"
-        self.random_cameras = False
+        self.use_cameras_position = True
 
         self.content_weight = 100.0
         self.style_decay = 0.95
@@ -62,7 +59,7 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         # Paths will be inited in self.exportInput()
         self.input_model_path = None
         self.input_texture_path = None
-        self.input_cameras_path = None  # Can be None if no cameras or self.random_cameras is True
+        self.input_cameras_path = None  # Can be None if no cameras or self.use_cameras_position is False
         self.output_dir = None
         self.output_texture_path = None
         self.result_model_path = None
@@ -75,24 +72,13 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         QtWidgets.QDialog.__init__(self, parent)
         self.setWindowTitle("Model style transfer")
 
-        self.btnQuit = QtWidgets.QPushButton("Close")
-        self.btnQuit.setFixedSize(90, 50)
-
-        self.btnRun = QtWidgets.QPushButton("Run")
-        self.btnRun.setFixedSize(90, 50)
-
-        layout = QtWidgets.QGridLayout()  # creating layout
-        layout.addWidget(self.btnRun, 1, 0)
-        layout.addWidget(self.btnQuit, 1, 1)
-
-        self.setLayout(layout)
-
-        QtCore.QObject.connect(self.btnRun, QtCore.SIGNAL("clicked()"), lambda: self.modelStyleTransfer())
-        QtCore.QObject.connect(self.btnQuit, QtCore.SIGNAL("clicked()"), self, QtCore.SLOT("reject()"))
+        self.createGUI()
+        self.initDefaultParams()
 
         self.exec()
 
     def modelStyleTransfer(self):
+        self.loadParams()
 
         print("Script started...")
 
@@ -105,6 +91,151 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
 
         print("Script finished!")
         return True
+
+    def chooseStylePath(self):
+        style_path = PhotoScan.app.getOpenFileName(filter="*.jpg;;*.jpeg;;*.JPG;;*.JPEG;;*.png;;*.PNG")
+        self.edtStylePath.setText(style_path)
+
+    def chooseWorkingDir(self):
+        working_dir = PhotoScan.app.getOpenFileName()
+        self.edtWorkingDir.setText(working_dir)
+
+    def createGUI(self):
+        layout = QtWidgets.QGridLayout()
+        row = 0
+
+        self.txtStylePath= QtWidgets.QLabel()
+        self.txtStylePath.setText("Style image:")
+        self.txtStylePath.setFixedSize(150, 25)
+        self.edtStylePath= QtWidgets.QLineEdit()
+        self.edtStylePath.setPlaceholderText("URL or file path")
+        self.btnStylePath = QtWidgets.QPushButton("...")
+        self.btnStylePath.setFixedSize(25, 25)
+        QtCore.QObject.connect(self.btnStylePath, QtCore.SIGNAL("clicked()"), lambda: self.chooseStylePath())
+        layout.addWidget(self.txtStylePath, row, 0)
+        layout.addWidget(self.edtStylePath, row, 1)
+        layout.addWidget(self.btnStylePath, row, 2)
+        row += 1
+
+        self.txtStyleName = QtWidgets.QLabel()
+        self.txtStyleName.setText("Style name:")
+        self.txtStyleName.setFixedSize(150, 25)
+        self.edtStyleName = QtWidgets.QLineEdit()
+        layout.addWidget(self.txtStyleName, row, 0)
+        layout.addWidget(self.edtStyleName, row, 1, 1, 2)
+        row += 1
+
+        self.txtStepsNumber = QtWidgets.QLabel()
+        self.txtStepsNumber.setText("Steps number:")
+        self.txtStepsNumber.setFixedSize(150, 25)
+        self.edtStepsNumber = QtWidgets.QLineEdit()
+        self.edtStepsNumber.setPlaceholderText("number of iterations")
+        layout.addWidget(self.txtStepsNumber, row, 0)
+        layout.addWidget(self.edtStepsNumber, row, 1, 1, 2)
+        row += 1
+
+        self.txtTextureSize = QtWidgets.QLabel()
+        self.txtTextureSize.setText("Texture size:")
+        self.txtTextureSize.setFixedSize(150, 25)
+        self.edtTextureSize = QtWidgets.QLineEdit()
+        self.edtTextureSize.setPlaceholderText("resulting texture resolution")
+        layout.addWidget(self.txtTextureSize, row, 0)
+        layout.addWidget(self.edtTextureSize, row, 1, 1, 2)
+        row += 1
+
+        self.txtRenderingSize = QtWidgets.QLabel()
+        self.txtRenderingSize.setText("Rendering size:")
+        self.txtRenderingSize.setFixedSize(150, 25)
+        self.edtRenderingSize = QtWidgets.QLineEdit()
+        self.edtRenderingSize.setPlaceholderText("width of rendering buffer")
+        layout.addWidget(self.txtRenderingSize, row, 0)
+        layout.addWidget(self.edtRenderingSize, row, 1, 1, 2)
+        row += 1
+
+        self.txtModelName = QtWidgets.QLabel()
+        self.txtModelName.setText("Model name:")
+        self.txtModelName.setFixedSize(150, 25)
+        self.edtModelName = QtWidgets.QLineEdit()
+        layout.addWidget(self.txtModelName, row, 0)
+        layout.addWidget(self.edtModelName, row, 1, 1, 2)
+        row += 1
+
+        self.txtWorkingDir= QtWidgets.QLabel()
+        self.txtWorkingDir.setText("Working dir:")
+        self.txtWorkingDir.setFixedSize(150, 25)
+        self.edtWorkingDir= QtWidgets.QLineEdit()
+        self.edtWorkingDir.setPlaceholderText("path to dir")
+        self.btnWorkingDir = QtWidgets.QPushButton("...")
+        self.btnWorkingDir.setFixedSize(25, 25)
+        QtCore.QObject.connect(self.btnWorkingDir, QtCore.SIGNAL("clicked()"), lambda: self.chooseWorkingDir())
+        layout.addWidget(self.txtWorkingDir, row, 0)
+        layout.addWidget(self.edtWorkingDir, row, 1)
+        layout.addWidget(self.btnWorkingDir, row, 2)
+        row += 1
+
+        self.txtContentWeight= QtWidgets.QLabel()
+        self.txtContentWeight.setText("Content weight:")
+        self.txtContentWeight.setFixedSize(150, 25)
+        self.edtContentWeight= QtWidgets.QLineEdit()
+        layout.addWidget(self.txtContentWeight, row, 0)
+        layout.addWidget(self.edtContentWeight, row, 1, 1, 2)
+        row += 1
+
+        self.txtUseCameraPositions= QtWidgets.QLabel()
+        self.txtUseCameraPositions.setText("Use cameras position:")
+        self.txtUseCameraPositions.setFixedSize(150, 25)
+        self.chbUseCameraPositions= QtWidgets.QCheckBox()
+        layout.addWidget(self.txtUseCameraPositions, row, 0)
+        layout.addWidget(self.chbUseCameraPositions, row, 1)
+        row += 1
+
+        self.txtPBar = QtWidgets.QLabel()
+        self.txtPBar.setText("Progress:")
+        self.txtPBar.setFixedSize(150, 25)
+        self.pBar = QtWidgets.QProgressBar()
+        self.pBar.setTextVisible(False)
+        self.pBar.setMinimumSize(239, 25)
+        layout.addWidget(self.txtPBar, row, 0)
+        layout.addWidget(self.pBar, row, 1, 1, 2)
+        row += 1
+
+        self.btnRun = QtWidgets.QPushButton("Run")
+        layout.addWidget(self.btnRun, row, 1, 1, 2)
+        row += 1
+
+        self.setLayout(layout)
+
+        QtCore.QObject.connect(self.btnRun, QtCore.SIGNAL("clicked()"), lambda: self.modelStyleTransfer())
+
+    def initDefaultParams(self):
+        self.edtTextureSize.setText(str(self.texture_size))
+        self.edtRenderingSize.setText(str(self.rendering_width))
+        self.edtStepsNumber.setText(str(self.steps_number))
+        # self.edtStylePath.setText(str(self.style_path))
+        self.edtStyleName.setText(self.style_name)
+        self.edtWorkingDir.setText(self.working_dir)
+        self.edtModelName.setText(self.model_name)
+        self.edtContentWeight.setText(str(self.content_weight))
+        self.chbUseCameraPositions.setChecked(self.use_cameras_position)
+
+    def loadParams(self):
+        self.texture_size = int(self.edtTextureSize.text())
+        self.rendering_width = int(self.edtRenderingSize.text())
+        self.steps_number = int(self.edtStepsNumber.text())
+        self.style_path = self.edtStylePath.text()
+        self.style_name = self.edtStyleName.text()
+        self.working_dir = self.edtWorkingDir.text()
+        self.model_name = self.edtModelName.text()
+        self.content_weight = float(self.edtContentWeight.text())
+        self.use_cameras_position = self.chbUseCameraPositions.isChecked()
+
+        if len(self.style_path) == 0:
+            PhotoScan.app.messageBox("You should specify style image!")
+            raise Exception("You should specify style image!")
+
+        if len(self.working_dir) == 0:
+            PhotoScan.app.messageBox("You should specify working dir!")
+            raise Exception("You should specify working dir!")
 
     def exportInput(self):
         working_dir = pathlib.Path(self.working_dir)
@@ -123,7 +254,7 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         self.input_texture_path = str(working_dir / "{}.jpg".format(self.model_name))
 
         self.input_cameras_path = str(working_dir / "{}.cameras".format(self.model_name))
-        if self.random_cameras or not self.exportCameras():
+        if not self.use_cameras_position or not self.exportCameras():
             self.input_cameras_path = None
 
         self.output_dir = working_dir / self.style_name
@@ -169,6 +300,8 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         return True
 
     def loadCameras(self):
+        import numpy as np
+
         if self.input_cameras_path is None:
             return None
 
@@ -251,6 +384,8 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
 
         print("Loading input model from '{}'...".format(self.input_model_path))
         mesh = meshutil.load_obj(self.input_model_path)
+        if self.cameras is None:
+            mesh = meshutil.normalize_mesh(mesh)
 
         print("Loading input texture from '{}'...".format(self.input_texture_path))
         original_texture = prepare_image(self.input_texture_path, (self.texture_size, self.texture_size))
@@ -326,6 +461,8 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
                 return rand_m
 
         def run(mesh, step_n=400):
+            app = QtWidgets.QApplication.instance()
+
             for i in range(step_n):
                 fragments = renderer.render_mesh(
                     modelview=sample_random_view(),
@@ -341,9 +478,9 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
                     print(len(loss_log), loss)
                     pass
 
-                # PhotoScan stuff
+                # Show progress
+                self.pBar.setValue((i + step_n//10 + 1) / (step_n + step_n//10) * 100)
                 app.processEvents()
-                self.pBar.setValue(int(processed / len(mask_list) / len(chunk.frames) * 100))
 
         reset(style, original_texture)
 
@@ -361,8 +498,11 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         chunk.model = None
         chunk.importModel(self.result_model_path)
 
-        PhotoScan.app.messageBox("Everything worked fine, but please save project and RESTART PhotoScan,"
-                                 " because video memory was not released!")
+        PhotoScan.app.messageBox("Everything worked fine!\n"
+                                 "Please save project and \n"
+                                 "RESTART PhotoScan!\n"
+                                 "Because video memory\n"
+                                 "was not released!")
 
 
 def model_style_transfer():
