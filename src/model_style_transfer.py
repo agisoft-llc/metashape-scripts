@@ -33,7 +33,7 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         self.style_name = "style1"
         self.working_dir = ""
         self.model_name = "model1"
-        self.use_cameras_position = True
+        self.use_cameras_position = len(chunk.cameras) > 0
 
         self.content_weight = 200.0
         self.style_decay = 0.95
@@ -82,6 +82,9 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
 
         try:
             self.textureStyle3D()
+        except:
+            PhotoScan.app.messageBox("Something gone wrong!\n"
+                                     "Please check the console.")
         finally:
             self.reject()
 
@@ -182,6 +185,8 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         self.txtUseCameraPositions.setText("Use cameras position:")
         self.txtUseCameraPositions.setFixedSize(150, 25)
         self.chbUseCameraPositions= QtWidgets.QCheckBox()
+        if len(chunk.cameras) == 0:
+            self.chbUseCameraPositions.setEnabled(False)
         layout.addWidget(self.txtUseCameraPositions, row, 0)
         layout.addWidget(self.chbUseCameraPositions, row, 1)
         row += 1
