@@ -85,6 +85,7 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         except:
             PhotoScan.app.messageBox("Something gone wrong!\n"
                                      "Please check the console.")
+            raise
         finally:
             self.reject()
 
