@@ -8,10 +8,6 @@
 # Note that you need to:
 # 1. Install CUDA 9.0 and cuDNN for CUDA 9.0
 # 2. In Python bundled with PhotoScan install these packages: tensorflow-gpu==1.9.0 lucid==0.2.3 numpy==1.15.0 Pillow==5.2.0 matplotlib==2.2.2 ipython==6.5.0 PyOpenGL==3.1.0 jupyter==1.0.0
-# 3. In photoscan.sh add this line:
-#      LD_LIBRARY_PATH=/usr/local/cuda-9.0/lib64/:$LD_LIBRARY_PATH
-#    right before this line:
-#      LD_LIBRARY_PATH=$dirname:$dirname/python/lib:$LD_LIBRARY_PATH
 #
 # (Tutorial is coming)
 
@@ -95,6 +91,7 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
     def chooseStylePath(self):
         style_path = PhotoScan.app.getOpenFileName(filter="*.jpg;;*.jpeg;;*.JPG;;*.JPEG;;*.png;;*.PNG")
         self.edtStylePath.setText(style_path)
+        self.edtStyleName.setText(pathlib.Path(style_path).stem)
 
     def chooseWorkingDir(self):
         working_dir = PhotoScan.app.getOpenFileName()
@@ -211,7 +208,7 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         self.edtTextureSize.setText(str(self.texture_size))
         self.edtRenderingSize.setText(str(self.rendering_width))
         self.edtStepsNumber.setText(str(self.steps_number))
-        # self.edtStylePath.setText(str(self.style_path))
+        self.edtStylePath.setText(str(self.style_path))
         self.edtStyleName.setText(self.style_name)
         self.edtWorkingDir.setText(self.working_dir)
         self.edtModelName.setText(self.model_name)
@@ -497,12 +494,11 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         print("Importing result model to PhotoScan '{}'...".format(self.result_model_path))
         chunk.model = None
         chunk.importModel(self.result_model_path)
+        chunk.model.label = self.style_name
 
         PhotoScan.app.messageBox("Everything worked fine!\n"
-                                 "Please save project and \n"
-                                 "RESTART PhotoScan!\n"
-                                 "Because video memory\n"
-                                 "was not released!")
+                                 "Please save project and RESTART PhotoScan!\n"
+                                 "Because video memory was not released by TensorFlow!")
 
 
 def model_style_transfer():
