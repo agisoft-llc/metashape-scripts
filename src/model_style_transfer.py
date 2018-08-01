@@ -347,7 +347,8 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
 
         from IPython.display import clear_output, display, Image, HTML
 
-        from lucid.misc.gl.glcontext import create_opengl_context
+        if os.name != 'nt':
+            from lucid.misc.gl.glcontext import create_opengl_context
         import OpenGL.GL as gl
 
         from lucid.misc.gl import meshutil
@@ -362,8 +363,9 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         from lucid.optvis.style import StyleLoss, mean_l1_loss
         from lucid.optvis.param.spatial import sample_bilinear
 
-        print("Creating OpenGL context...")
-        create_opengl_context()
+        if os.name != 'nt':
+            print("Creating OpenGL context...")
+            create_opengl_context()
         gl.glGetString(gl.GL_VERSION)
 
         print("Loading vision model...")
