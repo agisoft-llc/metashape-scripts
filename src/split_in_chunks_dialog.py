@@ -240,7 +240,7 @@ class SplitDlg(QtWidgets.QDialog):
                     new_chunk = chunk.copy(items=[PhotoScan.DataSource.DenseCloudData, PhotoScan.DataSource.DepthMapsData])
                 else:
                     new_chunk = chunk.copy(items=[])
-                new_chunk.label = "Chunk " + str(i) + "\\" + str(j)
+                new_chunk.label = "Chunk " + str(i) + "_" + str(j)
                 if new_chunk.model:
                     new_chunk.model.clear()
 
