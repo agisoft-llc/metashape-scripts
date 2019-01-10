@@ -1,33 +1,33 @@
-# This is python script for PhotoScan Pro. Scripts repository: https://github.com/agisoft-llc/photoscan-scripts
+# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
-import PhotoScan
+import Metashape
 from PySide2 import QtGui, QtCore, QtWidgets
 
 # Checking compatibility
 compatible_major_version = "1.4"
-found_major_version = ".".join(PhotoScan.app.version.split('.')[:2])
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
-    raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-QUALITY = {"1":  PhotoScan.UltraQuality,
-           "2":  PhotoScan.HighQuality,
-           "4":  PhotoScan.MediumQuality,
-           "8":  PhotoScan.LowQuality,
-           "16": PhotoScan.LowestQuality}
+QUALITY = {"1":  Metashape.UltraQuality,
+           "2":  Metashape.HighQuality,
+           "4":  Metashape.MediumQuality,
+           "8":  Metashape.LowQuality,
+           "16": Metashape.LowestQuality}
 
-FILTERING = {"3": PhotoScan.NoFiltering,
-             "0": PhotoScan.MildFiltering,
-             "1": PhotoScan.ModerateFiltering,
-             "2": PhotoScan.AggressiveFiltering}
+FILTERING = {"3": Metashape.NoFiltering,
+             "0": Metashape.MildFiltering,
+             "1": Metashape.ModerateFiltering,
+             "2": Metashape.AggressiveFiltering}
 
-MESH = {"Arbitrary": PhotoScan.SurfaceType.Arbitrary,
-        "Height Field": PhotoScan.SurfaceType.HeightField}
+MESH = {"Arbitrary": Metashape.SurfaceType.Arbitrary,
+        "Height Field": Metashape.SurfaceType.HeightField}
 
-DENSE = {"Ultra": PhotoScan.UltraQuality,
-         "High": PhotoScan.HighQuality,
-         "Medium": PhotoScan.MediumQuality,
-         "Low": PhotoScan.LowQuality,
-         "Lowest": PhotoScan.LowestQuality}
+DENSE = {"Ultra": Metashape.UltraQuality,
+         "High": Metashape.HighQuality,
+         "Medium": Metashape.MediumQuality,
+         "Low": Metashape.LowQuality,
+         "Lowest": Metashape.LowestQuality}
 
 
 def isIdent(matrix):
@@ -213,7 +213,7 @@ class SplitDlg(QtWidgets.QDialog):
         quality = DENSE[self.denseBox.currentText()]
         mesh_mode = MESH[self.meshBox.currentText()]
 
-        doc = PhotoScan.app.document
+        doc = Metashape.app.document
         chunk = doc.chunk
 
         if not chunk.transform.translation.norm():
@@ -237,18 +237,18 @@ class SplitDlg(QtWidgets.QDialog):
         for j in range(1, partsY + 1):  # creating new chunks and adjusting bounding box
             for i in range(1, partsX + 1):
                 if not buildDense:
-                    new_chunk = chunk.copy(items=[PhotoScan.DataSource.DenseCloudData, PhotoScan.DataSource.DepthMapsData])
+                    new_chunk = chunk.copy(items=[Metashape.DataSource.DenseCloudData, Metashape.DataSource.DepthMapsData])
                 else:
                     new_chunk = chunk.copy(items=[])
                 new_chunk.label = "Chunk " + str(i) + "_" + str(j)
                 if new_chunk.model:
                     new_chunk.model.clear()
 
-                new_region = PhotoScan.Region()
+                new_region = Metashape.Region()
                 new_rot = r_rotate
-                new_center = PhotoScan.Vector([(i - 0.5) * x_scale, (j - 0.5) * y_scale, 0.5 * z_scale])
+                new_center = Metashape.Vector([(i - 0.5) * x_scale, (j - 0.5) * y_scale, 0.5 * z_scale])
                 new_center = offset + new_rot * new_center
-                new_size = PhotoScan.Vector([x_scale, y_scale, z_scale])
+                new_size = Metashape.Vector([x_scale, y_scale, z_scale])
 
                 if self.edtOvp.text().isdigit():
                     new_region.size = new_size * (1 + float(self.edtOvp.text()) / 100)
@@ -260,7 +260,7 @@ class SplitDlg(QtWidgets.QDialog):
 
                 new_chunk.region = new_region
 
-                PhotoScan.app.update()
+                Metashape.app.update()
 
                 if autosave:
                     doc.save()
@@ -282,7 +282,7 @@ class SplitDlg(QtWidgets.QDialog):
                         reuse_depth = False
                         try:
                             new_chunk.buildDepthMaps(quality=quality,
-                                                     filter=PhotoScan.FilterMode.AggressiveFiltering, reuse_depth=reuse_depth)
+                                                     filter=Metashape.FilterMode.AggressiveFiltering, reuse_depth=reuse_depth)
                             new_chunk.buildDenseCloud(max_neighbors=100)  # keep_depth=False
                         except RuntimeError:
                             print("Can't build dense cloud for " + chunk.label)
@@ -294,17 +294,17 @@ class SplitDlg(QtWidgets.QDialog):
                     if new_chunk.dense_cloud:
                         try:
                             new_chunk.buildModel(surface=mesh_mode,
-                                                 source=PhotoScan.DataSource.DenseCloudData,
-                                                 interpolation=PhotoScan.Interpolation.EnabledInterpolation,
-                                                 face_count=PhotoScan.FaceCount.HighFaceCount)
+                                                 source=Metashape.DataSource.DenseCloudData,
+                                                 interpolation=Metashape.Interpolation.EnabledInterpolation,
+                                                 face_count=Metashape.FaceCount.HighFaceCount)
                         except RuntimeError:
                             print("Can't build mesh for " + chunk.label)
                     else:
                         try:
                             new_chunk.buildModel(surface=mesh_mode,
-                                                 source=PhotoScan.DataSource.PointCloudData,
-                                                 interpolation=PhotoScan.Interpolation.EnabledInterpolation,
-                                                 face_count=PhotoScan.FaceCount.HighFaceCount)
+                                                 source=Metashape.DataSource.PointCloudData,
+                                                 interpolation=Metashape.Interpolation.EnabledInterpolation,
+                                                 face_count=Metashape.FaceCount.HighFaceCount)
                         except RuntimeError:
                             print("Can't build mesh for " + chunk.label)
                     if autosave:
@@ -338,7 +338,7 @@ class SplitDlg(QtWidgets.QDialog):
 
 def split_in_chunks():
     global doc
-    doc = PhotoScan.app.document
+    doc = Metashape.app.document
 
     app = QtWidgets.QApplication.instance()
     parent = app.activeWindow()
@@ -347,5 +347,5 @@ def split_in_chunks():
 
 
 label = "Custom menu/Split in chunks"
-PhotoScan.app.addMenuItem(label, split_in_chunks)
+Metashape.app.addMenuItem(label, split_in_chunks)
 print("To execute this script press {}".format(label))

@@ -1,20 +1,20 @@
 # Resizes all bounding boxes to Active chunk bounding box.
 #
-# This is python script for PhotoScan Pro. Scripts repository: https://github.com/agisoft-llc/photoscan-scripts
+# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
-import PhotoScan
+import Metashape
 
 # Checking compatibility
 compatible_major_version = "1.4"
-found_major_version = ".".join(PhotoScan.app.version.split('.')[:2])
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
-    raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
 def copy_bbox():
     print("Script started...")
 
-    doc = PhotoScan.app.document
+    doc = Metashape.app.document
 
     chunk = doc.chunk
     T0 = chunk.transform.matrix
@@ -31,7 +31,7 @@ def copy_bbox():
 
         T = chunk.transform.matrix.inv() * T0
 
-        R = PhotoScan.Matrix([[T[0, 0], T[0, 1], T[0, 2]],
+        R = Metashape.Matrix([[T[0, 0], T[0, 1], T[0, 2]],
                               [T[1, 0], T[1, 1], T[1, 2]],
                               [T[2, 0], T[2, 1], T[2, 2]]])
 
@@ -49,5 +49,5 @@ def copy_bbox():
 
 
 label = "Custom menu/Copy bounding box"
-PhotoScan.app.addMenuItem(label, copy_bbox)
+Metashape.app.addMenuItem(label, copy_bbox)
 print("To execute this script press {}".format(label))

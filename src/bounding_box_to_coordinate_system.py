@@ -1,35 +1,35 @@
 # Rotates chunk's bounding box in accordance of coordinate system for active chunk. Bounding box size is kept.
 #
-# This is python script for PhotoScan Pro. Scripts repository: https://github.com/agisoft-llc/photoscan-scripts
+# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
-import PhotoScan
+import Metashape
 import math
 
 # Checking compatibility
 compatible_major_version = "1.4"
-found_major_version = ".".join(PhotoScan.app.version.split('.')[:2])
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
-    raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
 def bbox_to_cs():
     print("Script started...")
 
-    doc = PhotoScan.app.document
+    doc = Metashape.app.document
     chunk = doc.chunk
 
     T = chunk.transform.matrix
 
-    v_t = T.mulp(PhotoScan.Vector([0, 0, 0]))
+    v_t = T.mulp(Metashape.Vector([0, 0, 0]))
 
     if chunk.crs:
         m = chunk.crs.localframe(v_t)
     else:
-        m = PhotoScan.Matrix().Diag([1, 1, 1, 1])
+        m = Metashape.Matrix().Diag([1, 1, 1, 1])
 
     m = m * T
     s = math.sqrt(m[0, 0] ** 2 + m[0, 1] ** 2 + m[0, 2] ** 2)  # scale factor # s = m.scale()
-    R = PhotoScan.Matrix([[m[0, 0], m[0, 1], m[0, 2]],
+    R = Metashape.Matrix([[m[0, 0], m[0, 1], m[0, 2]],
                           [m[1, 0], m[1, 1], m[1, 2]],
                           [m[2, 0], m[2, 1], m[2, 2]]])
     # R = m.rotation()
@@ -44,5 +44,5 @@ def bbox_to_cs():
 
 
 label = "Custom menu/Bounding box to coordinate system"
-PhotoScan.app.addMenuItem(label, bbox_to_cs)
+Metashape.app.addMenuItem(label, bbox_to_cs)
 print("To execute this script press {}".format(label))

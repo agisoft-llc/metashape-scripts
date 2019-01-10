@@ -1,16 +1,16 @@
 # Script save model renders for selected cameras (or all aligned cameras if no aligned cameras selected)
 # to the same folder where the source photos are present with the "_render" suffix.
 #
-# This is python script for PhotoScan Pro. Scripts repository: https://github.com/agisoft-llc/photoscan-scripts
+# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
-import PhotoScan
+import Metashape
 import os
 
 # Checking compatibility
 compatible_major_version = "1.4"
-found_major_version = ".".join(PhotoScan.app.version.split('.')[:2])
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
-    raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
 def get_cameras(chunk):
@@ -25,7 +25,7 @@ def get_cameras(chunk):
 def render_cameras():
     print("Script started...")
 
-    chunk = PhotoScan.app.document.chunk
+    chunk = Metashape.app.document.chunk
     if not chunk.model:
         raise Exception("No model!")
 
@@ -42,5 +42,5 @@ def render_cameras():
 
 
 label = "Custom menu/Render photos for cameras"
-PhotoScan.app.addMenuItem(label, render_cameras)
+Metashape.app.addMenuItem(label, render_cameras)
 print("To execute this script press {}".format(label))

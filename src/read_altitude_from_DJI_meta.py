@@ -1,15 +1,15 @@
 # Script read RelativeAltitude information from DJI meta data for all the cameras in the active chunk
 # and loads it to the Reference pane instead of the existing data.
 #
-# This is python script for PhotoScan Pro. Scripts repository: https://github.com/agisoft-llc/photoscan-scripts
+# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
-import PhotoScan
+import Metashape
 
 # Checking compatibility
 compatible_major_version = "1.4"
-found_major_version = ".".join(PhotoScan.app.version.split('.')[:2])
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
-    raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
 def read_DJI_relative_altitude():
@@ -17,7 +17,7 @@ def read_DJI_relative_altitude():
     Reads DJI/RelativeAltitude information from the image meta-date and writes it to the Reference pane
     """
 
-    doc = PhotoScan.app.document
+    doc = Metashape.app.document
     if not len(doc.chunks):
         raise Exception("No chunks!")
 
@@ -35,5 +35,5 @@ def read_DJI_relative_altitude():
 
 
 label = "Custom menu/Read RelativeAltitude from DJI metadata"
-PhotoScan.app.addMenuItem(label, read_DJI_relative_altitude)
+Metashape.app.addMenuItem(label, read_DJI_relative_altitude)
 print("To execute this script press {}".format(label))

@@ -1,15 +1,15 @@
 # Created by GeoScan Ltd. (http://geoscan.aero)
 #
-# This is python script for PhotoScan Pro. Scripts repository: https://github.com/agisoft-llc/photoscan-scripts
+# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
-import PhotoScan as ps
+import Metashape as ps
 import math, time
 
 # Checking compatibility
 compatible_major_version = "1.4"
 found_major_version = ".".join(ps.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
-    raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 try:
     from PySide2.QtGui import *

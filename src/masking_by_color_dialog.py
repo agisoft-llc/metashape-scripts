@@ -1,15 +1,15 @@
 # Creates masks for cameras in the active chunk, based on user defined color and tolerance.
 #
-# This is python script for PhotoScan Pro. Scripts repository: https://github.com/agisoft-llc/photoscan-scripts
+# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
-import PhotoScan
+import Metashape
 from PySide2 import QtGui, QtCore, QtWidgets
 
 # Checking compatibility
 compatible_major_version = "1.4"
-found_major_version = ".".join(PhotoScan.app.version.split('.')[:2])
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
-    raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
 class MaskByColor(QtWidgets.QDialog):
@@ -140,7 +140,7 @@ class MaskByColor(QtWidgets.QDialog):
         self.btnP1.setDisabled(True)
         self.btnQuit.setDisabled(True)
 
-        chunk = PhotoScan.app.document.chunk
+        chunk = Metashape.app.document.chunk
         mask_list = list()
         if self.radioBtn_sel.isChecked():
             for photo in chunk.cameras:
@@ -150,7 +150,7 @@ class MaskByColor(QtWidgets.QDialog):
             mask_list = list(chunk.cameras)
 
         if not len(mask_list):
-            PhotoScan.app.messageBox("Nothing to mask!")
+            Metashape.app.messageBox("Nothing to mask!")
             return False
 
         color = self.color
@@ -162,8 +162,8 @@ class MaskByColor(QtWidgets.QDialog):
             for frame in camera.frames:
                 print(frame)
                 app.processEvents()
-                mask = PhotoScan.utils.createDifferenceMask(frame.photo.image(), (red, green, blue), tolerance, False)
-                m = PhotoScan.Mask()
+                mask = Metashape.utils.createDifferenceMask(frame.photo.image(), (red, green, blue), tolerance, False)
+                m = Metashape.Mask()
                 m.setImage(mask)
                 frame.mask = m
                 processed += 1
@@ -181,7 +181,7 @@ class MaskByColor(QtWidgets.QDialog):
 
 def mask_by_color():
     global doc
-    doc = PhotoScan.app.document
+    doc = Metashape.app.document
 
     global app
     app = QtWidgets.QApplication.instance()
@@ -191,5 +191,5 @@ def mask_by_color():
 
 
 label = "Custom menu/Masking by color"
-PhotoScan.app.addMenuItem(label, mask_by_color)
+Metashape.app.addMenuItem(label, mask_by_color)
 print("To execute this script press {}".format(label))

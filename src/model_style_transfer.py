@@ -1,26 +1,26 @@
-# This is python script for PhotoScan Pro. Scripts repository: https://github.com/agisoft-llc/photoscan-scripts
+# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 #
 # Based on https://colab.research.google.com/github/tensorflow/lucid/blob/master/notebooks/differentiable-parameterizations/style_transfer_3d.ipynb
 # Modifications:
 # 1. Taking into account cameras positions (when possible) instead of meshutil.sample_view(10.0, 12.0)
-# 2. Integration with PhotoScan Pro to make usage easier
+# 2. Integration with Metashape Pro to make usage easier
 #
 # Note that you need to:
 # 1. Install CUDA 9.0 and cuDNN for CUDA 9.0
-# 2. In Python bundled with PhotoScan install these packages: tensorflow-gpu==1.9.0 lucid==0.2.3 numpy==1.15.0 Pillow==5.2.0 matplotlib==2.2.2 ipython==6.5.0 PyOpenGL==3.1.0 jupyter==1.0.0
+# 2. In Python bundled with Metashape install these packages: tensorflow-gpu==1.9.0 lucid==0.2.3 numpy==1.15.0 Pillow==5.2.0 matplotlib==2.2.2 ipython==6.5.0 PyOpenGL==3.1.0 jupyter==1.0.0
 #
-# (Tutorial is coming)
+# Installation and usage instruction: http://www.agisoft.com/index.php?id=54
 
-import PhotoScan
+import Metashape
 import pathlib, shutil, math
 from PySide2 import QtGui, QtCore, QtWidgets
 
 
 # Checking compatibility
 compatible_major_version = "1.4"
-found_major_version = ".".join(PhotoScan.app.version.split('.')[:2])
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
-    raise Exception("Incompatible PhotoScan version: {} != {}".format(found_major_version, compatible_major_version))
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
 class ModelStyleTransferDlg(QtWidgets.QDialog):
@@ -48,9 +48,9 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         ]
         self.googlenet_content_layer = 'mixed3b'
 
-        if len(PhotoScan.app.document.path) > 0:
-            self.working_dir = str(pathlib.Path(PhotoScan.app.document.path).parent / "model_style_transfer")
-            self.model_name = pathlib.Path(PhotoScan.app.document.path).stem
+        if len(Metashape.app.document.path) > 0:
+            self.working_dir = str(pathlib.Path(Metashape.app.document.path).parent / "model_style_transfer")
+            self.model_name = pathlib.Path(Metashape.app.document.path).stem
 
         # Paths will be inited in self.exportInput()
         self.input_model_path = None
@@ -83,7 +83,7 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         try:
             self.textureStyle3D()
         except:
-            PhotoScan.app.messageBox("Something gone wrong!\n"
+            Metashape.app.messageBox("Something gone wrong!\n"
                                      "Please check the console.")
             raise
         finally:
@@ -93,12 +93,12 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         return True
 
     def chooseStylePath(self):
-        style_path = PhotoScan.app.getOpenFileName(filter="*.jpg;;*.jpeg;;*.JPG;;*.JPEG;;*.png;;*.PNG")
+        style_path = Metashape.app.getOpenFileName(filter="*.jpg;;*.jpeg;;*.JPG;;*.JPEG;;*.png;;*.PNG")
         self.edtStylePath.setText(style_path)
         self.edtStyleName.setText(pathlib.Path(style_path).stem)
 
     def chooseWorkingDir(self):
-        working_dir = PhotoScan.app.getExistingDirectory()
+        working_dir = Metashape.app.getExistingDirectory()
         self.edtWorkingDir.setText(working_dir)
 
     def createGUI(self):
@@ -233,11 +233,11 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         self.use_cameras_position = self.chbUseCameraPositions.isChecked()
 
         if len(self.style_path) == 0:
-            PhotoScan.app.messageBox("You should specify style image!")
+            Metashape.app.messageBox("You should specify style image!")
             raise Exception("You should specify style image!")
 
         if len(self.working_dir) == 0:
-            PhotoScan.app.messageBox("You should specify working dir!")
+            Metashape.app.messageBox("You should specify working dir!")
             raise Exception("You should specify working dir!")
 
     def exportInput(self):
@@ -247,12 +247,12 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
 
         self.input_model_path = str(working_dir / "{}.ply".format(self.model_name))
         print("Exporting model to '{}'...".format(self.input_model_path))
-        chunk.exportModel(self.input_model_path, binary=True, texture_format=PhotoScan.ImageFormatJPEG, texture=True,
-                          normals=False, colors=False, cameras=False, markers=False, format=PhotoScan.ModelFormatPLY)
+        chunk.exportModel(self.input_model_path, binary=True, texture_format=Metashape.ImageFormatJPEG, texture=True,
+                          normals=False, colors=False, cameras=False, markers=False, format=Metashape.ModelFormatPLY)
         self.input_model_path = str(working_dir / "{}.obj".format(self.model_name))
         print("Exporting model to '{}'...".format(self.input_model_path))
-        chunk.exportModel(self.input_model_path, binary=False, texture_format=PhotoScan.ImageFormatJPEG, texture=True,
-                          normals=False, colors=False, cameras=False, markers=False, format=PhotoScan.ModelFormatOBJ)
+        chunk.exportModel(self.input_model_path, binary=False, texture_format=Metashape.ImageFormatJPEG, texture=True,
+                          normals=False, colors=False, cameras=False, markers=False, format=Metashape.ModelFormatOBJ)
 
         self.input_texture_path = str(working_dir / "{}.jpg".format(self.model_name))
 
@@ -499,19 +499,19 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
 
         sess.close()
 
-        print("Importing result model to PhotoScan '{}'...".format(self.result_model_path))
+        print("Importing result model to Metashape '{}'...".format(self.result_model_path))
         chunk.model = None
         chunk.importModel(self.result_model_path)
         chunk.model.label = self.style_name
 
-        PhotoScan.app.messageBox("Everything worked fine!\n"
-                                 "Please save project and RESTART PhotoScan!\n"
+        Metashape.app.messageBox("Everything worked fine!\n"
+                                 "Please save project and RESTART Metashape!\n"
                                  "Because video memory was not released by TensorFlow!")
 
 
 def model_style_transfer():
     global chunk
-    chunk = PhotoScan.app.document.chunk
+    chunk = Metashape.app.document.chunk
 
     if chunk is None or chunk.model is None:
         raise Exception("No active model!")
@@ -526,5 +526,5 @@ def model_style_transfer():
 
 
 label = "Custom menu/Model style transfer"
-PhotoScan.app.addMenuItem(label, model_style_transfer)
+Metashape.app.addMenuItem(label, model_style_transfer)
 print("To execute this script press {}".format(label))
