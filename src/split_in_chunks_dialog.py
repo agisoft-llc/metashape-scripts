@@ -216,7 +216,9 @@ class SplitDlg(QtWidgets.QDialog):
         doc = Metashape.app.document
         chunk = doc.chunk
 
-        if not chunk.transform.translation.norm():
+        if not chunk.transform.translation:
+            chunk.transform.matrix = chunk.transform.matrix
+	elif not chunk.transform.translation.norm():
             chunk.transform.matrix = chunk.transform.matrix
         elif chunk.transform.scale == 1:
             chunk.transform.matrix = chunk.transform.matrix
