@@ -216,6 +216,9 @@ class SplitDlg(QtWidgets.QDialog):
         doc = Metashape.app.document
         chunk = doc.chunk
 
+        original_chunk = chunk
+        temporary_chunks = []
+
         if not chunk.transform.translation:
             chunk.transform.matrix = chunk.transform.matrix
         elif not chunk.transform.translation.norm():
@@ -245,6 +248,8 @@ class SplitDlg(QtWidgets.QDialog):
                 new_chunk.label = "Chunk " + str(i) + "_" + str(j)
                 if new_chunk.model:
                     new_chunk.model.clear()
+
+                temporary_chunks.append(new_chunk)
 
                 new_region = Metashape.Region()
                 new_rot = r_rotate
@@ -320,14 +325,13 @@ class SplitDlg(QtWidgets.QDialog):
                 # new_chunk = None
 
         if mergeBack:
-            for i in range(1, len(doc.chunks)):
-                chunk = doc.chunks[i]
+            for chunk in temporary_chunks:
                 chunk.remove(chunk.cameras)
-            doc.chunks[0].model = None  # hiding the mesh of the original chunk, just for case
-            doc.mergeChunks(doc.chunks,
+            original_chunk.model = None  # hiding the mesh of the original chunk, just for case
+            doc.mergeChunks([original_chunk] + temporary_chunks,
                             merge_dense_clouds=True, merge_models=True, merge_markers=True)  # merging all smaller chunks into single one
 
-            doc.remove(doc.chunks[1:-1])  # removing smaller chunks.
+            doc.remove(temporary_chunks)  # removing smaller chunks.
             if autosave:
                 doc.save()
 
