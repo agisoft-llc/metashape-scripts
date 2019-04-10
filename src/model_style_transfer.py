@@ -281,7 +281,7 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
         matrices = []
         selection_active = len([c for c in chunk.cameras if c.selected]) > 0
         for c in chunk.cameras:
-            if (selection_active and not c.selected) or not c.enabled or c.transform is None:
+            if (selection_active and not c.selected) or not c.enabled or c.transform is None or c.type != Metashape.Camera.Type.Regular:
                 continue
             calibration = c.sensor.calibration
             f, w, h = calibration.f, calibration.width, calibration.height

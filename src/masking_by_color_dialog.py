@@ -143,11 +143,11 @@ class MaskByColor(QtWidgets.QDialog):
         chunk = Metashape.app.document.chunk
         mask_list = list()
         if self.radioBtn_sel.isChecked():
-            for photo in chunk.cameras:
-                if photo.selected:
-                    mask_list.append(photo)
+            for camera in chunk.cameras:
+                if camera.selected and camera.type == Metashape.Camera.Type.Regular:
+                    mask_list.append(camera)
         elif self.radioBtn_all.isChecked():
-            mask_list = list(chunk.cameras)
+            mask_list = [camera for camera in chunk.cameras if camera.type == Metashape.Camera.Type.Regular]
 
         if not len(mask_list):
             Metashape.app.messageBox("Nothing to mask!")

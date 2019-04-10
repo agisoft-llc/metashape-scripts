@@ -40,7 +40,7 @@ def create_footprints():
         surface = chunk.point_cloud
 
     for camera in chunk.cameras:
-        if not camera.transform:
+        if camera.type != Metashape.Camera.Type.Regular or not camera.transform:
             continue  # skipping NA cameras
 
         sensor = camera.sensor

@@ -14,12 +14,12 @@ if found_major_version != compatible_major_version:
 
 
 def get_cameras(chunk):
-    selected_cameras = [camera for camera in chunk.cameras if camera.transform and camera.selected]
+    selected_cameras = [camera for camera in chunk.cameras if camera.transform and camera.selected and camera.type == Metashape.Camera.Type.Regular]
 
     if len(selected_cameras) > 0:
         return selected_cameras
     else:
-        return [camera for camera in chunk.cameras if camera.transform]
+        return [camera for camera in chunk.cameras if camera.transform and camera.type == Metashape.Camera.Type.Regular]
 
 
 def render_cameras():
