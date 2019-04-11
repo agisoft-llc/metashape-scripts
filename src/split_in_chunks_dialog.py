@@ -228,10 +228,10 @@ class SplitDlg(QtWidgets.QDialog):
         elif isIdent(chunk.transform.rotation):
             chunk.transform.matrix = chunk.transform.matrix
 
-        region = chunk.region
-        r_center = region.center
-        r_rotate = region.rot
-        r_size = region.size
+        original_region = chunk.region
+        r_center = original_region.center
+        r_rotate = original_region.rot
+        r_size = original_region.size
 
         x_scale = r_size.x / partsX
         y_scale = r_size.y / partsY
@@ -330,6 +330,8 @@ class SplitDlg(QtWidgets.QDialog):
             original_chunk.model = None  # hiding the mesh of the original chunk, just for case
             doc.mergeChunks([original_chunk] + temporary_chunks,
                             merge_dense_clouds=True, merge_models=True, merge_markers=True)  # merging all smaller chunks into single one
+            merged_chunk = doc.chunks[-1]
+            merged_chunk.region = original_region
 
             doc.remove(temporary_chunks)  # removing smaller chunks.
             if autosave:
