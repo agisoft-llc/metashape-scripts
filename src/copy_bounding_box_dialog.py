@@ -90,13 +90,14 @@ class CopyBoundingBoxDlg(QtWidgets.QDialog):
 
             scale = R.row(0).norm()
             R = R * (1 / scale)
-
-            region.rot = R * R0
+            
+            new_region = Metashape.Region()
+            new_region.rot = R * R0
             c = T.mulp(C0)
-            region.center = c
-            region.size = s0 * scale / 1.
+            new_region.center = c
+            new_region.size = s0 * scale / 1.
 
-            chunk.region = region
+            chunk.region = new_region
 
         print("Script finished!")
         self.reject()
