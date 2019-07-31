@@ -46,9 +46,9 @@ def create_footprints():
         sensor = camera.sensor
         corners = list()
         for i in [[0, 0], [sensor.width - 1, 0], [sensor.width - 1, sensor.height - 1], [0, sensor.height - 1]]:
-            corners.append(surface.pickPoint(camera.center, camera.transform.mulp(sensor.calibration.unproject(Metashape.Vector(i)))))
+            corners.append(surface.pickPoint(camera.center, camera.unproject(Metashape.Vector(i))))
             if not corners[-1]:
-                corners[-1] = chunk.point_cloud.pickPoint(camera.center, camera.transform.mulp(sensor.calibration.unproject(Metashape.Vector(i))))
+                corners[-1] = chunk.point_cloud.pickPoint(camera.center, camera.unproject(Metashape.Vector(i)))
             if not corners[-1]:
                 break
             corners[-1] = chunk.crs.project(T.mulp(corners[-1]))
