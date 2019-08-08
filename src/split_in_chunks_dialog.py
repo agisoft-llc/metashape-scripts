@@ -32,7 +32,7 @@ DENSE = {"Ultra": Metashape.UltraQuality,
 
 def isIdent(matrix):
     """
-	Check if the matrix is identity matrix
+    Check if the matrix is identity matrix
     """
     for i in range(matrix.size[0]):
         for j in range(matrix.size[1]):
@@ -68,34 +68,27 @@ class SplitDlg(QtWidgets.QDialog):
         self.spinY.setFixedSize(75, 25)
 
         self.chkMesh = QtWidgets.QCheckBox("Build Mesh")
-        self.chkMesh.setFixedSize(100, 50)
         self.chkMesh.setToolTip("Generates mesh for each cell in grid")
 
         self.meshBox = QtWidgets.QComboBox()
         for element in MESH.keys():
             self.meshBox.addItem(element)
-        self.meshBox.setFixedSize(100, 25)
 
         self.chkDense = QtWidgets.QCheckBox("Build Dense Cloud")
-        self.chkDense.setFixedSize(120, 50)
         self.chkDense.setWhatsThis("Builds dense cloud for each cell in grid")
 
         self.denseBox = QtWidgets.QComboBox()
         for element in DENSE.keys():
             self.denseBox.addItem(element)
-        self.denseBox.setFixedSize(100, 25)
 
         self.chkMerge = QtWidgets.QCheckBox("Merge Back")
-        self.chkMerge.setFixedSize(90, 50)
         self.chkMerge.setToolTip("Merges back the processing products formed in the individual cells")
 
         self.chkSave = QtWidgets.QCheckBox("Autosave")
-        self.chkSave.setFixedSize(90, 50)
         self.chkSave.setToolTip("Autosaves the project after each operation")
 
         self.txtOvp = QtWidgets.QLabel()
         self.txtOvp.setText("Overlap (%):")
-        self.txtOvp.setFixedSize(90, 25)
 
         self.edtOvp = QtWidgets.QLineEdit()
         self.edtOvp.setPlaceholderText("0")
@@ -280,17 +273,36 @@ class SplitDlg(QtWidgets.QDialog):
                         if new_chunk.depth_maps.meta['depth/depth_filter_mode']:
                             filtering = FILTERING[new_chunk.depth_maps.meta['depth/depth_filter_mode']]
                         try:
-                            new_chunk.buildDepthMaps(quality=quality, filter=filtering, reuse_depth=reuse_depth)
-                            new_chunk.buildDenseCloud(max_neighbors=100)  # keep_depth=False
+                            task = Metashape.Tasks.BuildDepthMaps()
+                            task.downscale = int(quality)
+                            task.filter_mode = filtering
+                            task.reuse_depth = reuse_depth
+                            task.network_distribute = True
+                            task.apply(new_chunk)
+
+                            task = Metashape.Tasks.BuildDenseCloud()
+                            task.max_neighbors = 100
+                            task.network_distribute = True
+                            task.point_colors = True
+                            task.apply(new_chunk)
                         except RuntimeError:
                             print("Can't build dense cloud for " + chunk.label)
 
                     else:
                         reuse_depth = False
                         try:
-                            new_chunk.buildDepthMaps(quality=quality,
-                                                     filter=Metashape.FilterMode.AggressiveFiltering, reuse_depth=reuse_depth)
-                            new_chunk.buildDenseCloud(max_neighbors=100)  # keep_depth=False
+                            task = Metashape.Tasks.BuildDepthMaps()
+                            task.downscale = int(quality)
+                            task.filter_mode = Metashape.FilterMode.MildFiltering
+                            task.reuse_depth = reuse_depth
+                            task.network_distribute = True
+                            task.apply(new_chunk)
+
+                            task = Metashape.Tasks.BuildDenseCloud()
+                            task.max_neighbors = 100
+                            task.network_distribute = True
+                            task.point_colors = True
+                            task.apply(new_chunk)
                         except RuntimeError:
                             print("Can't build dense cloud for " + chunk.label)
 
