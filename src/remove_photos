@@ -1,0 +1,81 @@
+import datetime
+import shutil
+import Metashape
+import os
+import sys
+
+"""
+Script for moving disabled photos, Metashape (v 1.5)
+Matjaz Mori, CPA, October 2019
+
+The script will create a new subdirectory in the photos directory,
+move all the photos from the project marked "Disabled" into it and remove "Disabled" cameras prom Metashape project.
+When using, it is advisable to monitor the Console (View -> Console). 
+
+"""
+
+compatible_major_version = "1.5"
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
+if found_major_version != compatible_major_version:
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
+    
+    
+def remove_photos():    
+    print (datetime.datetime.now())
+      
+    doc = Metashape.app.document
+    chunk = doc.chunk
+    counter = 0
+    counter_fail = 0
+    counter_not_moved = 0
+    counter_errors = 0
+    counter_cameras = 0
+    lenght = len(chunk.cameras)
+    
+    message = 'Starting to evaluate ' + str(lenght) + ' photos...'
+    print (message)
+
+    for camera in chunk.cameras:  
+        if camera.enabled is False:
+            photo_path = str(camera.photo.path)
+            photo_name = str(camera.label)
+            path = photo_path.replace(photo_name,'')
+            destination_dir = path + 'Unused'
+            destination = path + 'Unused\\' + photo_name   
+       
+            if not os.path.isdir(destination_dir):
+                try:
+                    os.mkdir(destination_dir)
+                    print ("Successfully created the directory %s " % destination_dir)               
+                except OSError:
+                    print ('Error creating %s' % destination_dir)
+                    pass
+                
+            try:       
+                if os.path.isfile(photo_path):
+                    print ('Moving %s ...' % photo_name)
+                    shutil.move(photo_path, destination)
+                    chunk.remove(camera)
+                    counter = counter + 1
+                    counter_cameras = counter_cameras + 1
+                else: 
+                    print ('Photo %s does not exist!' % photo_name)
+                    chunk.remove(camera)
+                    counter_cameras = counter_cameras + 1
+                    counter_fail = counter_fail + 1
+  
+            except OSError:
+                counter_errors = counter_errors + 1
+                print ('Error %s!' % photo_name)
+                pass
+                
+        else:
+            counter_not_moved = counter_not_moved + 1
+         
+                 
+    message_end = 'Success, ' + str(counter) + ' photos moved, ' + str(counter_not_moved) + ' photos not moved. \nNumber of files unable to move: ' + str(counter_fail) + '\nNumber of cameras removed: ' + str(counter_cameras) + '. \nNumber of unknown errorrs: '+ str(counter_errors)
+    print (message_end)
+
+label = "Custom menu/Remove disabled cameras"
+Metashape.app.addMenuItem(label, remove_photos)
+print("To execute this script press {}".format(label))
