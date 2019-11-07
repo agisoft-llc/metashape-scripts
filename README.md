@@ -4,7 +4,7 @@ These scripts are supposed to be used in Metashape Pro. They can be executed on 
 
 # Contributions are welcome!
 
-If you have script with general functionality that can be useful for other users - feel free to publish your script in this repository via pull request.
+If you have script with general functionality that can be useful for other users - feel free to publish your script in this repository in directory [contrib](https://github.com/agisoft-llc/metashape-scripts/tree/master/src/contrib) via pull request.
 
 # Compatibility with Metashape versions and PhotoScan
 
