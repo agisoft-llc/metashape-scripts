@@ -4,16 +4,10 @@ import Metashape
 from PySide2 import QtGui, QtCore, QtWidgets
 
 # Checking compatibility
-compatible_major_version = "1.5"
+compatible_major_version = "1.6"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
-
-QUALITY = {"1":  Metashape.UltraQuality,
-           "2":  Metashape.HighQuality,
-           "4":  Metashape.MediumQuality,
-           "8":  Metashape.LowQuality,
-           "16": Metashape.LowestQuality}
 
 FILTERING = {"3": Metashape.NoFiltering,
              "0": Metashape.MildFiltering,
@@ -23,11 +17,11 @@ FILTERING = {"3": Metashape.NoFiltering,
 MESH = {"Arbitrary": Metashape.SurfaceType.Arbitrary,
         "Height Field": Metashape.SurfaceType.HeightField}
 
-DENSE = {"Ultra": Metashape.UltraQuality,
-         "High": Metashape.HighQuality,
-         "Medium": Metashape.MediumQuality,
-         "Low": Metashape.LowQuality,
-         "Lowest": Metashape.LowestQuality}
+DENSE = {"Ultra":  1,
+         "High":   2,
+         "Medium": 4,
+         "Low":    8,
+         "Lowest": 16}
 
 
 def isIdent(matrix):
@@ -269,20 +263,20 @@ class SplitDlg(QtWidgets.QDialog):
                     if new_chunk.depth_maps:
                         reuse_depth = True
                         if new_chunk.depth_maps.meta['depth/depth_downscale']:
-                            quality = QUALITY[new_chunk.depth_maps.meta['depth/depth_downscale']]
+                            quality = int(new_chunk.depth_maps.meta['depth/depth_downscale'])
                         if new_chunk.depth_maps.meta['depth/depth_filter_mode']:
                             filtering = FILTERING[new_chunk.depth_maps.meta['depth/depth_filter_mode']]
                         try:
                             task = Metashape.Tasks.BuildDepthMaps()
-                            task.downscale = int(quality)
+                            task.downscale = quality
                             task.filter_mode = filtering
                             task.reuse_depth = reuse_depth
-                            task.network_distribute = True
+                            task.subdivide_task = True
                             task.apply(new_chunk)
 
                             task = Metashape.Tasks.BuildDenseCloud()
                             task.max_neighbors = 100
-                            task.network_distribute = True
+                            task.subdivide_task = True
                             task.point_colors = True
                             task.apply(new_chunk)
                         except RuntimeError:
@@ -292,15 +286,15 @@ class SplitDlg(QtWidgets.QDialog):
                         reuse_depth = False
                         try:
                             task = Metashape.Tasks.BuildDepthMaps()
-                            task.downscale = int(quality)
+                            task.downscale = quality
                             task.filter_mode = Metashape.FilterMode.MildFiltering
                             task.reuse_depth = reuse_depth
-                            task.network_distribute = True
+                            task.subdivide_task = True
                             task.apply(new_chunk)
 
                             task = Metashape.Tasks.BuildDenseCloud()
                             task.max_neighbors = 100
-                            task.network_distribute = True
+                            task.subdivide_task = True
                             task.point_colors = True
                             task.apply(new_chunk)
                         except RuntimeError:
@@ -312,16 +306,16 @@ class SplitDlg(QtWidgets.QDialog):
                 if buildMesh:
                     if new_chunk.dense_cloud:
                         try:
-                            new_chunk.buildModel(surface=mesh_mode,
-                                                 source=Metashape.DataSource.DenseCloudData,
+                            new_chunk.buildModel(surface_type=mesh_mode,
+                                                 source_data=Metashape.DataSource.DenseCloudData,
                                                  interpolation=Metashape.Interpolation.EnabledInterpolation,
                                                  face_count=Metashape.FaceCount.HighFaceCount)
                         except RuntimeError:
                             print("Can't build mesh for " + chunk.label)
                     else:
                         try:
-                            new_chunk.buildModel(surface=mesh_mode,
-                                                 source=Metashape.DataSource.PointCloudData,
+                            new_chunk.buildModel(surface_type=mesh_mode,
+                                                 source_data=Metashape.DataSource.PointCloudData,
                                                  interpolation=Metashape.Interpolation.EnabledInterpolation,
                                                  face_count=Metashape.FaceCount.HighFaceCount)
                         except RuntimeError:

@@ -6,7 +6,7 @@ import Metashape as ps
 import math, time
 
 # Checking compatibility
-compatible_major_version = "1.5"
+compatible_major_version = "1.6"
 found_major_version = ".".join(ps.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
