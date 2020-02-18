@@ -138,5 +138,6 @@ def export_depth_maps():
     dlg = ExportDepthDlg(parent)
 
 
-label = "Custom menu/Copy bounding box"
-Metashape.app.addMenuItem("Custom menu/Export Depth Maps", export_depth_maps)
+label = "Custom menu/Export Depth Maps"
+Metashape.app.addMenuItem(label, export_depth_maps)
+print("To execute this script press {}".format(label))
