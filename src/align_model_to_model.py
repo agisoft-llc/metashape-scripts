@@ -475,9 +475,7 @@ class AlignModelDlg(QtWidgets.QDialog):
             assert(self.chunk.model.key == key1)
             try:
                 matrix = self.chunk.transform.matrix
-                if self.chunk.model.transform is not None:
-                    matrix = self.chunk.model.transform * matrix
-                self.chunk.model.transform = Metashape.Matrix(M12) * matrix
+                self.chunk.model.transform(Metashape.Matrix(M12) * matrix)
             except AttributeError:
                 nvertices = len(self.chunk.model.vertices)
                 matrix = Metashape.Matrix(M12)
