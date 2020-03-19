@@ -3,6 +3,8 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
 import Metashape
+import multiprocessing
+import concurrent.futures
 
 # Checking compatibility
 compatible_major_version = "1.6"
@@ -39,9 +41,9 @@ def create_footprints():
     else:
         surface = chunk.point_cloud
 
-    for camera in chunk.cameras:
+    def process_camera(chunk, camera):
         if camera.type != Metashape.Camera.Type.Regular or not camera.transform:
-            continue  # skipping NA cameras
+            return  # skipping NA cameras
 
         sensor = camera.sensor
         corners = list()
@@ -55,7 +57,7 @@ def create_footprints():
 
         if not all(corners):
             print("Skipping camera " + camera.label)
-            continue
+            return
 
         if len(corners) == 4:
             shape = chunk.shapes.addShape()
@@ -65,6 +67,9 @@ def create_footprints():
             shape.group = footprints
             shape.vertices = corners
             shape.has_z = True
+
+    with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as executor:
+        executor.map(lambda camera: process_camera(chunk, camera), chunk.cameras)
 
     Metashape.app.update()
     print("Script finished!")
