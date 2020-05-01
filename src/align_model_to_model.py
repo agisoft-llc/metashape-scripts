@@ -22,11 +22,13 @@ try:
     # Requirements:
     # open3d >= 0.8.0.0  (for points cloud global registration and ICP-based refinement)
     # pyhull >= 2015.2.1 (for automatic scale ratio recognition between two models of the same closed object)
+    # On windows see also: https://www.agisoft.com/forum/index.php?topic=11387.msg54281#msg54281
     import open3d as o3d
     from pyhull.convex_hull import ConvexHull
     import numpy as np
 except ImportError:
     print("Please ensure that you installed open3d and pyhull via 'pip install open3d pyhull' - see https://agisoft.freshdesk.com/support/solutions/articles/31000136860-how-to-install-external-python-module-to-metashape-professional-package")
+    print("On windows please see also: https://www.agisoft.com/forum/index.php?topic=11387.msg54281#msg54281")
     raise
 
 # Checking compatibility
