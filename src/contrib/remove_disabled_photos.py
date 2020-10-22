@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 """
-Script for moving disabled photos, Metashape (v 1.5)
+Script for moving disabled photos, Metashape (v 1.7)
 Matjaz Mori, CPA, October 2019
 
 The script will create a new subdirectory in the photos directory,
@@ -15,7 +15,7 @@ When using, it is advisable to monitor the Console (View -> Console).
 
 """
 
-compatible_major_version = "1.6"
+compatible_major_version = "1.7"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
