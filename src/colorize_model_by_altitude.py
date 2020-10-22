@@ -41,7 +41,7 @@ def calculate_color(z, max, min):
     return color
 
 
-def convert_color():
+def colorize_model_vertices_by_altitude():
     print("Script started...")
     doc = Metashape.app.document
     chunk = doc.chunk
@@ -95,7 +95,7 @@ def convert_color():
 
             p.color = calculate_color(vt.z, max, min)
 
-    # We need to notify metashape about changes in model, so that it will be shown with new colors:
+    # We need to notify Metashape about changes in model, so that it will be shown with new colors:
     # let's do this via workaround - making a copy of model and then deleting the previous one
     # (just to trigger the update of Model View)
     tmp_model = chunk.model
@@ -109,5 +109,5 @@ def convert_color():
 
 
 label = "Custom Menu/Color Model with Altitude"
-Metashape.app.addMenuItem(label, convert_color)
+Metashape.app.addMenuItem(label, colorize_model_vertices_by_altitude)
 print("To execute this script press {}".format(label))
