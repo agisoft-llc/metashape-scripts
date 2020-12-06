@@ -57,11 +57,12 @@ def create_footprints():
                 break
             corners[-1] = chunk.crs.project(T.mulp(corners[-1]))
 
+        corners.append(corners[0])                            
         if not all(corners):
             print("Skipping camera " + camera.label)
             return
 
-        if len(corners) == 4:
+        if len(corners) == 5:
             shape = chunk.shapes.addShape()
             shape.label = camera.label
             shape.attributes["Photo"] = camera.label
