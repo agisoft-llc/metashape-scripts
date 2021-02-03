@@ -110,7 +110,8 @@ def estimate_rotation_matrices(chunk):
 
                 c.reference.rotation = ps.Vector([yaw, 0, 0])
 
-        group_cameras[-1].reference.rotation = group_cameras[-2].reference.rotation
+        if group_cameras[-1].reference.rotation is None and group_cameras[-1].reference.location is not None:
+            group_cameras[-1].reference.rotation = group_cameras[-2].reference.rotation
 
 
 @time_measure
