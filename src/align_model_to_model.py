@@ -38,6 +38,11 @@ if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
+try:
+    o3d_registration = o3d.registration
+except AttributeError:
+    o3d_registration = o3d.pipelines.registration
+
 def align_two_point_clouds(points1_source, points2_target, scale_ratio=None, target_resolution=None, no_global_alignment=False, preview_intermidiate_alignment=True):
     # For example let:
     #  - points2_target - tree with height1=10 and resolution1=0.1 (in its coordinates system)
@@ -202,7 +207,7 @@ def estimate_points_features(pcd_down, voxel_size):
     radius_normal = voxel_size * 2
     pcd_down.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
     radius_feature = voxel_size * 5
-    pcd_fpfh = o3d.registration.compute_fpfh_feature(pcd_down, o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
+    pcd_fpfh = o3d_registration.compute_fpfh_feature(pcd_down, o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
     return pcd_fpfh
 
 
@@ -217,24 +222,34 @@ def global_registration(v1, v2, global_voxel_size):
 
     distance_threshold = global_voxel_size * 2.0
     max_validation = np.min([len(source_down.points), len(target_down.points)]) // 2
-    global_registration_result = o3d.registration.registration_ransac_based_on_feature_matching(
-        source_down, target_down,
-        source_fpfh, target_fpfh,
-        distance_threshold,
-        o3d.registration.TransformationEstimationPointToPoint(False), 4, [
-            o3d.registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
-            o3d.registration.CorrespondenceCheckerBasedOnDistance(distance_threshold)
-        ], o3d.registration.RANSACConvergenceCriteria(4000000, max_validation))
+    kwargs = {
+        "source": source_down,
+        "target": target_down,
+        "source_feature": source_fpfh,
+        "target_feature": target_fpfh,
+        "max_correspondence_distance": distance_threshold,
+        "estimation_method": o3d_registration.TransformationEstimationPointToPoint(False),
+        "ransac_n": 4,
+        "checkers": [
+            o3d_registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
+            o3d_registration.CorrespondenceCheckerBasedOnDistance(distance_threshold)
+        ],
+        "criteria": o3d_registration.RANSACConvergenceCriteria(4000000, max_validation),
+    }
+    if o3d.__version__ not in ["0.{}.0".format(v) for v in range(12)]:
+        # Introduced in 0.12.0 release
+        kwargs["mutual_filter"] = True
+    global_registration_result = o3d_registration.registration_ransac_based_on_feature_matching(**kwargs)
     return source_down, target_down, global_registration_result
 
 
 def icp_registration(source, target, voxel_size, transform_init, max_iterations):
     # See http://www.open3d.org/docs/release/tutorial/Basic/icp_registration.html#icp-registration
     threshold = 8.0 * voxel_size
-    reg_p2p = o3d.registration.registration_icp(
+    reg_p2p = o3d_registration.registration_icp(
         source, target, threshold, transform_init,
-        o3d.registration.TransformationEstimationPointToPoint(),
-        o3d.registration.ICPConvergenceCriteria(max_iteration=max_iterations))
+        o3d_registration.TransformationEstimationPointToPoint(),
+        o3d_registration.ICPConvergenceCriteria(max_iteration=max_iterations))
     return reg_p2p
 
 
