@@ -100,13 +100,13 @@ class CameraStats():
         if self.error_location:
             self.printVector(f, "   XYZ error", self.error_location, 6)
         if self.estimated_location:
-            self.printVector(f, "   XYZ estimatated", self.estimated_location, 6)
+            self.printVector(f, "   XYZ estimated", self.estimated_location, 6)
         if self.reference_rotation:
             self.printVector(f, "   " + euler_name + " source", self.reference_rotation, 3)
         if self.error_rotation:
-            self.printVector(f, "   " + euler_name + " error".format, self.error_rotation, 3)
+            self.printVector(f, "   " + euler_name + " error", self.error_rotation, 3)
         if self.estimated_rotation:
-            self.printVector(f, "   " + euler_name + " estimatated", self.estimated_rotation, 3)
+            self.printVector(f, "   " + euler_name + " estimated", self.estimated_rotation, 3)
 
 
 def save_estimated_reference():
