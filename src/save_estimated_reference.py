@@ -43,7 +43,7 @@ class CameraStats():
         if camera.reference.location:
             self.reference_location = camera.reference.location
             self.error_location = Metashape.CoordinateSystem.transform(self.estimated_location, crs, ecef_crs) - Metashape.CoordinateSystem.transform(self.reference_location, crs, ecef_crs)
-            self.error_location = ecef_crs.localframe(location_ecef).rotation() * self.error_location
+            self.error_location = crs.localframe(location_ecef).rotation() * self.error_location
 
         if chunk.euler_angles == Metashape.EulerAnglesOPK or chunk.euler_angles == Metashape.EulerAnglesPOK:
             localframe = crs.localframe(location_ecef)
