@@ -3,6 +3,7 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
 import Metashape
+import math
 
 # Checking compatibility
 compatible_major_version = "1.7"
@@ -22,11 +23,13 @@ class CameraStats():
         self.reference_rotation = None
         self.error_location = None
         self.error_rotation = None
+        self.sigma_location = None
+        self.sigma_rotation = None
 
         if not camera.transform:
             return
 
-        transform = chunk.transform.matrix * camera.transform
+        transform = chunk.transform.matrix
         crs = chunk.crs
 
         if chunk.camera_crs:
@@ -35,9 +38,10 @@ class CameraStats():
 
         ecef_crs = self.getCartesianCrs(crs)
 
+        camera_transform = transform * camera.transform
         antenna_transform = self.getAntennaTransform(camera.sensor)
-        location_ecef = transform.translation() + transform.rotation() * antenna_transform.translation()
-        rotation_ecef = transform.rotation() * antenna_transform.rotation()
+        location_ecef = camera_transform.translation() + camera_transform.rotation() * antenna_transform.translation()
+        rotation_ecef = camera_transform.rotation() * antenna_transform.rotation()
 
         self.estimated_location = Metashape.CoordinateSystem.transform(location_ecef, ecef_crs, crs)
         if camera.reference.location:
@@ -58,6 +62,29 @@ class CameraStats():
             self.error_rotation.y = (self.error_rotation.y + 180) % 360 - 180
             self.error_rotation.z = (self.error_rotation.z + 180) % 360 - 180
 
+        if camera.location_covariance:
+            T = crs.localframe(location_ecef) * transform
+            R = T.rotation() * T.scale()
+
+            cov = R * camera.location_covariance * R.t()
+            self.sigma_location = Metashape.Vector([math.sqrt(cov[0, 0]), math.sqrt(cov[1, 1]), math.sqrt(cov[2, 2])])
+
+        if camera.rotation_covariance:
+            T = crs.localframe(location_ecef) * camera_transform
+            R0 = T.rotation()
+
+            dR = antenna_transform.rotation()
+
+            da = Metashape.utils.dmat2euler(R0 * dR, R0 * self.makeRotationDx(0) * dR, chunk.euler_angles);
+            db = Metashape.utils.dmat2euler(R0 * dR, R0 * self.makeRotationDy(0) * dR, chunk.euler_angles);
+            dc = Metashape.utils.dmat2euler(R0 * dR, R0 * self.makeRotationDz(0) * dR, chunk.euler_angles);
+
+            R = Metashape.Matrix([da, db, dc]).t()
+
+            cov = R * camera.rotation_covariance * R.t()
+
+            self.sigma_rotation = Metashape.Vector([math.sqrt(cov[0, 0]), math.sqrt(cov[1, 1]), math.sqrt(cov[2, 2])])
+
     def getCartesianCrs(self, crs):
         ecef_crs = crs.geoccs
         if ecef_crs is None:
@@ -75,6 +102,21 @@ class CameraStats():
         if rotation is None:
             rotation = sensor.antenna.rotation_ref
         return Metashape.Matrix.Diag((1, -1, -1, 1)) * Metashape.Matrix.Translation(location) * Metashape.Matrix.Rotation(Metashape.Utils.ypr2mat(rotation))
+
+    def makeRotationDx(self, alpha):
+        sina = math.sin(alpha)
+        cosa = math.cos(alpha)
+        return Metashape.Matrix([[0, 0, 0], [0, -sina, -cosa], [0, cosa, -sina]])
+
+    def makeRotationDy(self, alpha):
+        sina = math.sin(alpha)
+        cosa = math.cos(alpha)
+        return Metashape.Matrix([[-sina, 0, cosa], [0, 0, 0], [-cosa, 0, -sina]])
+
+    def makeRotationDz(self, alpha):
+        sina = math.sin(alpha)
+        cosa = math.cos(alpha)
+        return Metashape.Matrix([[-sina, -cosa, 0], [cosa, -sina, 0], [0, 0, 0]])
 
     def getEulerAnglesName(self, euler_angles):
         if euler_angles == Metashape.EulerAnglesOPK:
@@ -101,12 +143,16 @@ class CameraStats():
             self.printVector(f, "   XYZ error", self.error_location, 6)
         if self.estimated_location:
             self.printVector(f, "   XYZ estimated", self.estimated_location, 6)
+        if self.sigma_location:
+            self.printVector(f, "   XYZ sigma", self.sigma_location, 6)
         if self.reference_rotation:
             self.printVector(f, "   " + euler_name + " source", self.reference_rotation, 3)
         if self.error_rotation:
             self.printVector(f, "   " + euler_name + " error", self.error_rotation, 3)
         if self.estimated_rotation:
             self.printVector(f, "   " + euler_name + " estimated", self.estimated_rotation, 3)
+        if self.sigma_rotation:
+            self.printVector(f, "   " + euler_name + " sigma", self.sigma_rotation, 3)
 
 
 def save_estimated_reference():
