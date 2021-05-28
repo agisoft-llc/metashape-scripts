@@ -33,7 +33,7 @@ class CameraStats():
         crs = chunk.crs
 
         if chunk.camera_crs:
-            transform = self.getDatumTransform(crs, chunk.camera_crs) * transform
+            transform = Metashape.CoordinateSystem.datumTransform(crs, chunk.camera_crs) * transform
             crs = chunk.camera_crs
 
         ecef_crs = self.getCartesianCrs(crs)
@@ -90,9 +90,6 @@ class CameraStats():
         if ecef_crs is None:
             ecef_crs = Metashape.CoordinateSystem('LOCAL')
         return ecef_crs
-
-    def getDatumTransform(self, src, dst):
-        return Metashape.CoordinateSystem.transformationMatrix(Metashape.Vector((0, 0, 0)), self.getCartesianCrs(src), self.getCartesianCrs(dst))
 
     def getAntennaTransform(self, sensor):
         location = sensor.antenna.location
@@ -155,6 +152,113 @@ class CameraStats():
             self.printVector(f, "   " + euler_name + " sigma", self.sigma_rotation, 3)
 
 
+class MarkerStats():
+    def __init__(self, marker):
+        chunk = marker.chunk
+
+        self.marker = marker
+        self.estimated_location = None
+        self.reference_location = None
+        self.error_location = None
+        self.sigma_location = None
+
+        if not marker.position:
+            return
+
+        transform = chunk.transform.matrix
+        crs = chunk.crs
+
+        if chunk.marker_crs:
+            transform = Metashape.CoordinateSystem.datumTransform(crs, chunk.marker_crs) * transform
+            crs = chunk.marker_crs
+
+        ecef_crs = self.getCartesianCrs(crs)
+
+        location_ecef = transform.mulp(marker.position)
+
+        self.estimated_location = Metashape.CoordinateSystem.transform(location_ecef, ecef_crs, crs)
+        if marker.reference.location:
+            self.reference_location = marker.reference.location
+            self.error_location = Metashape.CoordinateSystem.transform(self.estimated_location, crs, ecef_crs) - Metashape.CoordinateSystem.transform(self.reference_location, crs, ecef_crs)
+            self.error_location = crs.localframe(location_ecef).rotation() * self.error_location
+
+        if marker.position_covariance:
+            T = crs.localframe(location_ecef) * transform
+            R = T.rotation() * T.scale()
+
+            cov = R * marker.position_covariance * R.t()
+            self.sigma_location = Metashape.Vector([math.sqrt(cov[0, 0]), math.sqrt(cov[1, 1]), math.sqrt(cov[2, 2])])
+
+    def getCartesianCrs(self, crs):
+        ecef_crs = crs.geoccs
+        if ecef_crs is None:
+            ecef_crs = Metashape.CoordinateSystem('LOCAL')
+        return ecef_crs
+
+    def printVector(self, f, name, value, precision):
+        fmt = "{:." + str(precision) + "f}"
+        fmt = "    " + name + ": " + fmt + " " + fmt + " " + fmt + "\n"
+        f.write(fmt.format(value.x, value.y, value.z))
+
+    def write(self, f):
+        f.write(self.marker.label + "\n")
+        if self.reference_location:
+            self.printVector(f, "   XYZ source", self.reference_location, 6)
+        if self.error_location:
+            self.printVector(f, "   XYZ error", self.error_location, 6)
+        if self.estimated_location:
+            self.printVector(f, "   XYZ estimated", self.estimated_location, 6)
+        if self.sigma_location:
+            self.printVector(f, "   XYZ sigma", self.sigma_location, 6)
+
+
+class ScalebarStats():
+    def __init__(self, scalebar):
+        chunk = scalebar.chunk
+
+        self.scalebar = scalebar
+        self.estimated_distance = None
+        self.reference_distance = None
+        self.error_distance = None
+
+        if not chunk.transform.scale:
+            return
+
+        point0 = None
+        point1 = None
+
+        if type(scalebar.point0) == Metashape.Marker:
+            point0 = scalebar.point0.position
+        if type(scalebar.point0) == Metashape.Camera:
+            point0 = scalebar.point0.center
+        if type(scalebar.point1) == Metashape.Marker:
+            point1 = scalebar.point1.position
+        if type(scalebar.point1) == Metashape.Camera:
+            point1 = scalebar.point1.center
+
+        if not point0 or not point1:
+            return
+
+        self.estimated_distance = (point1 - point0).norm() * chunk.transform.scale
+        if scalebar.reference.distance:
+            self.reference_distance = scalebar.reference.distance
+            self.error_distance = self.estimated_distance - self.reference_distance
+
+    def printScalar(self, f, name, value, precision):
+        fmt = "{:." + str(precision) + "f}"
+        fmt = "    " + name + ": " + fmt + "\n"
+        f.write(fmt.format(value))
+
+    def write(self, f):
+        f.write(self.scalebar.label + "\n")
+        if self.reference_distance:
+            self.printScalar(f, "   distance source", self.reference_distance, 6)
+        if self.error_distance:
+            self.printScalar(f, "   distance error", self.error_distance, 6)
+        if self.estimated_distance:
+            self.printScalar(f, "   distance estimated", self.estimated_distance, 6)
+
+
 def save_estimated_reference():
     filename = Metashape.app.getSaveFileName(filter="*.txt")
 
@@ -171,6 +275,20 @@ def save_estimated_reference():
                 continue
 
             stats = CameraStats(camera)
+            stats.write(f)
+
+        for marker in chunk.markers:
+            if marker.type != Metashape.Marker.Type.Regular:
+                continue
+
+            if not marker.position:
+                continue
+
+            stats = MarkerStats(marker)
+            stats.write(f)
+
+        for scalebar in chunk.scalebars:
+            stats = ScalebarStats(scalebar)
             stats.write(f)
 
 
