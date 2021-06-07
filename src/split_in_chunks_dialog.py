@@ -334,7 +334,7 @@ class SplitDlg(QtWidgets.QDialog):
             for chunk in temporary_chunks:
                 chunk.remove(chunk.cameras)
             original_chunk.model = None  # hiding the mesh of the original chunk, just for case
-            doc.mergeChunks([original_chunk] + temporary_chunks,
+        doc.mergeChunks(chunks = [original_chunk.key] + [chunk.key for chunk in temporary_chunks],
                             merge_dense_clouds=True, merge_models=True, merge_markers=True)  # merging all smaller chunks into single one
             merged_chunk = doc.chunks[-1]
             merged_chunk.region = original_region
