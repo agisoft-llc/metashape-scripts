@@ -70,7 +70,7 @@ class CameraStats():
             self.sigma_location = Metashape.Vector([math.sqrt(cov[0, 0]), math.sqrt(cov[1, 1]), math.sqrt(cov[2, 2])])
 
         if camera.rotation_covariance:
-            T = crs.localframe(location_ecef) * camera_transform
+            T = localframe * camera_transform  # to reflect rotation angles ypr (ecef_crs.localfram) or opk (crs.localframe)
             R0 = T.rotation()
 
             dR = antenna_transform.rotation()
