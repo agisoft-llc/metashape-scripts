@@ -2,6 +2,10 @@
 #
 # Based on https://github.com/danielgatis/rembg (tested on rembg==1.0.27)
 #
+# See also examples of rembg masking:
+# - https://peterfalkingham.com/2021/07/19/rembg-a-phenomenal-ai-based-background-remover/
+# - https://www.reddit.com/r/photogrammetry/comments/ogf9ei/metashape_rembg_ml_background_removal_and/
+#
 # How to install (Linux):
 #
 # 1. cd .../metashape-pro
@@ -12,8 +16,16 @@
 # How to install (Windows):
 #
 # 1. Launch cmd.exe with the administrator privileges
-# 2. "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install rembg torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-# 3. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
+# 2. "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install --use-feature=2020-resolver rembg torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+# 3. To not encounter error "Attempted to compile AOT function without the compiler used by numpy.distutils present. Cannot find suitable msvc.":
+# 3.1 Open https://visualstudio.microsoft.com/visual-cpp-build-tools/
+# 3.2 Download and launch 'Build Tools'
+# 3.3 Tick checkboxes "C++ build tools" and "MSVC v140 - VS 2015 C++ build tools" - see screenshot on forum https://www.agisoft.com/forum/index.php?topic=11387.msg54298#msg54298
+# 3.4 Reboot the computer
+# 4. To not encounter error "...\aot.cp38-win_amd64.lib" failed with exit status 1104":
+# 4.1 Launch cmd.exe with the administrator privileges
+# 4.2 "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -c "import rembg; import rembg.bg"
+# 5. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy automatic_masking.py script to C:/Users/<username>/AppData/Local/Agisoft/Metashape Pro/scripts/
 
 import pathlib
@@ -92,6 +104,16 @@ def generate_automatic_background_masks_with_rembg():
 
         photo_image = c.photo.image()
         img = np.frombuffer(photo_image.tostring(), dtype={'U8': np.uint8, 'U16': np.uint16}[photo_image.data_type]).reshape(photo_image.height, photo_image.width, photo_image.cn)[:, :, :3]
+
+        img = Image.fromarray(img)
+        max_downscale = 4
+        min_resolution = 640
+        downscale = min(photo_image.height // min_resolution, photo_image.width // min_resolution)
+        downscale = min(downscale, max_downscale)
+        if downscale > 1:
+            img = img.resize((photo_image.width // downscale, photo_image.height // downscale))
+        img = np.array(img)
+
         model_name = "u2net"
         with torch_lock:
             model = rembg.bg.get_model(model_name)
@@ -105,19 +127,20 @@ def generate_automatic_background_masks_with_rembg():
         mask = np.dstack([mask, mask, mask])
 
         Image.fromarray(mask).save(image_mask_path)
-        Metashape.app.update()
 
-    with concurrent.futures.ThreadPoolExecutor(4) as executor:
+    with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as executor:
         camera_offset = 0
         futures = []
         for masks_dir, dir_cameras in cameras_by_masks_dir.items():
             for camera_index, c in enumerate(dir_cameras):
                 futures.append(executor.submit(process_camera, pathlib.Path(masks_dir), c, camera_offset + camera_index))
+                Metashape.app.update()
             camera_offset += len(dir_cameras)
 
-        concurrent.futures.wait(futures)
         for future in futures:
+            concurrent.futures.wait([future])
             future.result()  # to check for exceptions
+            Metashape.app.update()
 
     print("{} masks generated in {} directories:".format(len(cameras), len(masks_dirs_created)))
     for mask_dir in sorted(masks_dirs_created):
