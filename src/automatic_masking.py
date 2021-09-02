@@ -22,7 +22,7 @@
 # 3. To not encounter error "Attempted to compile AOT function without the compiler used by numpy.distutils present. Cannot find suitable msvc.":
 # 3.1 Open https://visualstudio.microsoft.com/visual-cpp-build-tools/
 # 3.2 Download and launch 'Build Tools'
-# 3.3 Tick checkboxes "C++ build tools" and "MSVC v140 - VS 2015 C++ build tools" - see screenshot on forum https://www.agisoft.com/forum/index.php?topic=11387.msg54298#msg54298
+# 3.3 Tick "Desktop development with C++" and after that in "Installation details" tick "MSVC v140 - VS 2015 C++ build tools" - see screenshot on forum https://www.agisoft.com/forum/index.php?topic=11387.msg54298#msg54298
 # 3.4 Reboot the computer
 # 4. To not encounter error "...\aot.cp38-win_amd64.lib" failed with exit status 1104":
 # 4.1 Launch cmd.exe with the administrator privileges
