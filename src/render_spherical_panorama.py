@@ -53,8 +53,12 @@ def render_panorama_from_current_point():
     viewpoint = Metashape.app.model_view.viewpoint
     view_center = viewpoint.center
 
-    # z up, x front
-    z_up_rotation = Metashape.Matrix([[0, 0, -1], [-1, 0, 0], [0, 1, 0]])
+    # z up, x front, y left
+    z_up_rotation = Metashape.Matrix([
+        [0,  0, -1],
+        [-1, 0, 0 ],
+        [0,  1, 0 ]
+    ])
     # panorama from viewpoint direction
     view_rotation = viewpoint.rot
 
@@ -62,6 +66,8 @@ def render_panorama_from_current_point():
         rotation = view_rotation
     else:
         rotation = z_up_rotation
+
+    print("Started rendering...")
 
     render_spherical_panorama(result_height_px, view_center, rotation, result_path)
     
