@@ -1,6 +1,7 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
 import Metashape
+import math
 from PySide2 import QtGui, QtCore, QtWidgets
 
 # Checking compatibility
@@ -156,26 +157,19 @@ class SplitDlg(QtWidgets.QDialog):
 
         tempPixmap = QtGui.QPixmap(self.gridWidth, self.gridHeight)
         tempImage = tempPixmap.toImage()
-        tempImage.fill(QtGui.qRgb(240, 240, 240))
+        tempImage.fill(QtGui.qRgb(236, 236, 236))
 
-        for y in range(int(self.gridHeight / self.gridY) * self.gridY):
-            for x in range(int(self.gridWidth / self.gridX) * self.gridX):
-                if not (x and y) or (x == self.gridWidth - 1) or (y == self.gridHeight - 1):
+        xStep = math.floor((self.gridWidth - 1) / self.gridX)
+        yStep = math.floor((self.gridHeight - 1) / self.gridY)
+        xSize = min(self.gridWidth, xStep * self.gridX + 1)
+        ySize = min(self.gridHeight, yStep * self.gridY + 1)
+
+        for y in range(ySize):
+            for x in range(xSize):
+                if (x % xStep == 0 or y % yStep == 0):
                     tempImage.setPixel(x, y, QtGui.qRgb(0, 0, 0))
-                elif y > int(self.gridHeight / self.gridY) * self.gridY:
-                    tempImage.setPixel(x, y, QtGui.qRgb(240, 240, 240))
-                elif x > int(self.gridWidth / self.gridX) * self.gridX:
-                    tempImage.setPixel(x, y, QtGui.qRgb(240, 240, 240))
                 else:
                     tempImage.setPixel(x, y, QtGui.qRgb(255, 255, 255))
-
-        for y in range(0, int(self.gridHeight / self.gridY + 1) * self.gridY, int(self.gridHeight / self.gridY)):
-            for x in range(int(self.gridWidth / self.gridX) * self.gridX):
-                tempImage.setPixel(x, y, QtGui.qRgb(0, 0, 0))
-
-        for x in range(0, int(self.gridWidth / self.gridX + 1) * self.gridX, int(self.gridWidth / self.gridX)):
-            for y in range(int(self.gridHeight / self.gridY) * self.gridY):
-                tempImage.setPixel(x, y, QtGui.qRgb(0, 0, 0))
 
         tempPixmap = tempPixmap.fromImage(tempImage)
         self.grid.setPixmap(tempPixmap)
