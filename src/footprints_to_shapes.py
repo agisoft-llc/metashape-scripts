@@ -7,7 +7,7 @@ import multiprocessing
 import concurrent.futures
 
 # Checking compatibility
-compatible_major_version = "1.7"
+compatible_major_version = "1.8"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -65,11 +65,9 @@ def create_footprints():
             shape = chunk.shapes.addShape()
             shape.label = camera.label
             shape.attributes["Photo"] = camera.label
-            shape.type = Metashape.Shape.Type.Polygon
             shape.group = footprints
-            shape.vertices = corners
-            shape.has_z = True
-
+            shape.geometry = Metashape.Geometry.Polygon(corners)
+            
     with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as executor:
         executor.map(lambda camera: process_camera(chunk, camera), chunk.cameras)
 
