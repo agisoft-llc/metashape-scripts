@@ -320,6 +320,8 @@ class DetectObjectsDlg(QtWidgets.QDialog):
 
         n_train_zone_shapes_out_of_orthomosaic = 0
         for zone_i, shape in enumerate(self.train_zones):
+            assert(len(shape.geometry.coordinates) == 1)
+            shape_vertices = shape.geometry.coordinates[0]
             zone_from_world = None
             zone_from_world_best = None
             for tile_x in range(self.tile_min_x, self.tile_max_x):
@@ -328,7 +330,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                         continue
                     to_world = self.tiles_to_world[tile_x, tile_y]
                     from_world = self.invert_matrix_2x3(to_world)
-                    for p in shape.vertices:
+                    for p in shape_vertices:
                         p = Metashape.CoordinateSystem.transform(p, self.chunk.shapes.crs, self.chunk.orthomosaic.crs)
                         p_in_tile = from_world @ [p.x, p.y, 1]
                         distance2_to_tile_center = np.linalg.norm(p_in_tile - [self.patch_size/2, self.patch_size/2])
@@ -340,7 +342,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
 
             zone_from = None
             zone_to = None
-            for p in shape.vertices:
+            for p in shape_vertices:
                 p = Metashape.CoordinateSystem.transform(p, self.chunk.shapes.crs, self.chunk.orthomosaic.crs)
                 p_in_ortho = np.int32(np.round(zone_from_world @ [p.x, p.y, 1]))
                 if zone_from is None:
@@ -385,9 +387,11 @@ class DetectObjectsDlg(QtWidgets.QDialog):
             zone_from, zone_to, zone_from_world = self.train_zones_on_ortho[zone_i]
             annotations = []
             for annotation in self.train_data:
+                assert(len(annotation.geometry.coordinates) == 1)
+                annotation_vertices = annotation.geometry.coordinates[0]
                 annotation_from = None
                 annotation_to = None
-                for p in annotation.vertices:
+                for p in annotation_vertices:
                     p = Metashape.CoordinateSystem.transform(p, self.chunk.shapes.crs, self.chunk.orthomosaic.crs)
                     p_in_ortho = np.int32(np.round(zone_from_world @ [p.x, p.y, 1]))
                     if annotation_from is None:
@@ -949,10 +953,8 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                 corners.append([p.x, p.y])
 
             shape = self.chunk.shapes.addShape()
-            shape.type = Metashape.Shape.Type.Polygon
             shape.group = shapes_group
-            shape.vertices = corners
-            shape.has_z = False
+            shape.geometry = Metashape.Geometry.Polygon(corners)
 
     def show_results_dialog(self):
         message = "Finished in {:.2f} sec:\n".format(self.results_time_total)\
