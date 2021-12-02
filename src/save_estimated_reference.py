@@ -292,6 +292,6 @@ def save_estimated_reference():
             stats.write(f)
 
 
-label = "Custom menu/Save estimated reference"
+label = "Scripts/Save estimated reference"
 Metashape.app.addMenuItem(label, save_estimated_reference)
 print("To execute this script press {}".format(label))

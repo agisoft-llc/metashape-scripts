@@ -1258,6 +1258,6 @@ def detect_objects():
     dlg = DetectObjectsDlg(parent)
 
 
-label = "Custom menu/Detect objects"
+label = "Scripts/Detect objects"
 Metashape.app.addMenuItem(label, detect_objects)
 print("To execute this script press {}".format(label))

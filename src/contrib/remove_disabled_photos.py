@@ -77,6 +77,6 @@ def remove_disabled_photos():
     print (message_end)
 
 
-label = "Custom menu/Remove disabled photos"
+label = "Scripts/Remove disabled photos"
 Metashape.app.addMenuItem(label, remove_disabled_photos)
 print("To execute this script press {}".format(label))

@@ -138,6 +138,6 @@ def export_depth_maps():
     dlg = ExportDepthDlg(parent)
 
 
-label = "Custom menu/Export Depth Maps"
+label = "Scripts/Export Depth Maps"
 Metashape.app.addMenuItem(label, export_depth_maps)
 print("To execute this script press {}".format(label))

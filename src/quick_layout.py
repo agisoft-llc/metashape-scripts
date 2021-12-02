@@ -158,6 +158,6 @@ def run_camera_alignment():
     print("Script finished!")
 
 
-label = "Custom menu/Apply Vertical Camera Alignment"
+label = "Scripts/Apply Vertical Camera Alignment"
 ps.app.addMenuItem(label, run_camera_alignment)
 print("To execute this script press {}".format(label))

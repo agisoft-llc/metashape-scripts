@@ -525,6 +525,6 @@ def model_style_transfer():
     dlg = ModelStyleTransferDlg(parent)
 
 
-label = "Custom menu/Model style transfer"
+label = "Scripts/Model style transfer"
 Metashape.app.addMenuItem(label, model_style_transfer)
 print("To execute this script press {}".format(label))

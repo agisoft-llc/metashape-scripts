@@ -33,6 +33,6 @@ def add_altitude():
     print("Script finished!")
 
 
-label = "Custom menu/Add reference altitude"
+label = "Scripts/Add reference altitude"
 Metashape.app.addMenuItem(label, add_altitude)
 print("To execute this script press {}".format(label))

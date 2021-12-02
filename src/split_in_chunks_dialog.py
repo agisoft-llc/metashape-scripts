@@ -354,6 +354,6 @@ def split_in_chunks():
     dlg = SplitDlg(parent)
 
 
-label = "Custom menu/Split in chunks"
+label = "Scripts/Split in chunks"
 Metashape.app.addMenuItem(label, split_in_chunks)
 print("To execute this script press {}".format(label))

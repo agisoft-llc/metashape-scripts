@@ -190,6 +190,6 @@ def mask_by_color():
     dlg = MaskByColor(parent)
 
 
-label = "Custom menu/Masking by color"
+label = "Scripts/Masking by color"
 Metashape.app.addMenuItem(label, mask_by_color)
 print("To execute this script press {}".format(label))

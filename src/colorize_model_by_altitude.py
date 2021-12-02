@@ -108,6 +108,6 @@ def colorize_model_vertices_by_altitude():
     print("Script finished.")
 
 
-label = "Custom Menu/Color Model with Altitude"
+label = "Scripts/Color Model with Altitude"
 Metashape.app.addMenuItem(label, colorize_model_vertices_by_altitude)
 print("To execute this script press {}".format(label))

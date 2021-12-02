@@ -73,6 +73,6 @@ def render_panorama_from_current_point():
     
     print("Script finished!")
 
-label = "Custom menu/Render spherical panorama"
+label = "Scripts/Render spherical panorama"
 Metashape.app.addMenuItem(label, render_panorama_from_current_point)
 print("To execute this script press {}".format(label))

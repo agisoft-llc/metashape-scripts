@@ -155,6 +155,6 @@ def generate_automatic_background_masks_with_rembg():
     print("Script finished.")
 
 
-label = "Custom Menu/Automatic background masking"
+label = "Scripts/Automatic background masking"
 Metashape.app.addMenuItem(label, generate_automatic_background_masks_with_rembg)
 print("To execute this script press {}".format(label))

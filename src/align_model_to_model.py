@@ -520,6 +520,6 @@ def show_alignment_dialog():
     dlg = AlignModelDlg(parent)
 
 
-label = "Custom menu/Align model or dense point cloud"
+label = "Scripts/Align model or dense point cloud"
 Metashape.app.addMenuItem(label, show_alignment_dialog)
 print("To execute this script press {}".format(label))

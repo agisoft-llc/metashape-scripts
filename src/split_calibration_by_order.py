@@ -47,6 +47,6 @@ def split_cameras_calibration_group_by_order():
     print("Script finished, grouped calibration groups by the order.")
 
 
-label = "Custom menu/Split calibration groups by order"
+label = "Scripts/Split calibration groups by order"
 Metashape.app.addMenuItem(label, split_cameras_calibration_group_by_order)
 print("To execute this script press {}".format(label))

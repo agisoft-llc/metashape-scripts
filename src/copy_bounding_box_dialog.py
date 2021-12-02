@@ -110,6 +110,6 @@ def copy_bbox():
     dlg = CopyBoundingBoxDlg(parent)
 
 
-label = "Custom menu/Copy bounding box"
+label = "Scripts/Copy bounding box"
 Metashape.app.addMenuItem(label, copy_bbox)
 print("To execute this script press {}".format(label))

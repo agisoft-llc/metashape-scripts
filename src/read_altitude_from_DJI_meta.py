@@ -34,6 +34,6 @@ def read_DJI_relative_altitude():
     print("Script finished!")
 
 
-label = "Custom menu/Read RelativeAltitude from DJI metadata"
+label = "Scripts/Read RelativeAltitude from DJI metadata"
 Metashape.app.addMenuItem(label, read_DJI_relative_altitude)
 print("To execute this script press {}".format(label))

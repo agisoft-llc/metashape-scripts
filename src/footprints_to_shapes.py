@@ -67,7 +67,7 @@ def create_footprints():
             shape.attributes["Photo"] = camera.label
             shape.group = footprints
             shape.geometry = Metashape.Geometry.Polygon(corners)
-            
+
     with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as executor:
         executor.map(lambda camera: process_camera(chunk, camera), chunk.cameras)
 
@@ -75,6 +75,6 @@ def create_footprints():
     print("Script finished!")
 
 
-label = "Custom menu/Create footprint shape layer"
+label = "Scripts/Create footprint shape layer"
 Metashape.app.addMenuItem(label, create_footprints)
 print("To execute this script press {}".format(label))

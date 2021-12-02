@@ -41,6 +41,6 @@ def render_cameras():
     print("Script finished!")
 
 
-label = "Custom menu/Render photos for cameras"
+label = "Scripts/Render photos for cameras"
 Metashape.app.addMenuItem(label, render_cameras)
 print("To execute this script press {}".format(label))

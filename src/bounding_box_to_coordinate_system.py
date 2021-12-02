@@ -43,6 +43,6 @@ def bbox_to_cs():
     print("Script finished!")
 
 
-label = "Custom menu/Bounding box to coordinate system"
+label = "Scripts/Bounding box to coordinate system"
 Metashape.app.addMenuItem(label, bbox_to_cs)
 print("To execute this script press {}".format(label))

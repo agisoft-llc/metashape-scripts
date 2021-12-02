@@ -71,6 +71,6 @@ def colorize_model_vertices_by_overlap():
     print("Script finished in {:.2f} seconds.".format(time.time() - start_time))
 
 
-label = "Custom Menu/Color Model with Overlap"
+label = "Scripts/Color Model with Overlap"
 Metashape.app.addMenuItem(label, colorize_model_vertices_by_overlap)
 print("To execute this script press {}".format(label))
