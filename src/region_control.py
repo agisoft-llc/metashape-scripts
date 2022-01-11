@@ -249,6 +249,6 @@ def show_region_dialog():
     dlg = ChunkRegionControl(parent)
 
 
-label = "Scripts/Region Сontrol"
+label = "Scripts/Region Control"
 Metashape.app.addMenuItem(label, show_region_dialog)
 print("To execute this script press {}".format(label))
