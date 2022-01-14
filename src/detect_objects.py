@@ -111,7 +111,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
         self.save_model_path = ""
         self.load_model_path = self.readModelLoadPathFromSettings()
 
-        self.cleanup_working_dir = True
+        self.cleanup_working_dir = False
         self.debug_tiles = False
 
         self.train_on_user_data_enabled = False
@@ -192,11 +192,25 @@ class DetectObjectsDlg(QtWidgets.QDialog):
 
     def prepair(self):
         import os, sys, multiprocessing
+        import random, string
 
         if self.working_dir == "":
             raise Exception("You should specify working directory (or save .psx project)")
 
         print("Working dir: {}".format(self.working_dir))
+        try:
+            os.mkdir(self.working_dir)
+        except FileExistsError:
+            already_existing_working_dir = self.working_dir
+            random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            self.working_dir = self.working_dir + "/tmp_" + random_suffix
+            print("Working dir: {} already exists, trying instead: {}".format(already_existing_working_dir, self.working_dir))
+            try:
+                os.mkdir(self.working_dir)
+            except FileExistsError:
+                raise Exception("Working directory {} already exists! Please specify another working dir.".format(self.working_dir))
+
+        self.cleanup_working_dir = True
 
         self.dir_tiles = self.working_dir + "/tiles/"
 
@@ -207,10 +221,6 @@ class DetectObjectsDlg(QtWidgets.QDialog):
         self.dir_detection_results = self.working_dir + "/detection/"
         self.dir_subtiles_results = self.dir_detection_results + "inner/"
 
-        try:
-            os.mkdir(self.working_dir)
-        except FileExistsError:
-            pass
         for subdir in [self.dir_tiles, self.dir_train_data, self.dir_train_subtiles, self.dir_train_subtiles_debug, self.dir_detection_results, self.dir_subtiles_results]:
             shutil.rmtree(subdir, ignore_errors=True)
             os.mkdir(subdir)
