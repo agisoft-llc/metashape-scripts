@@ -12,7 +12,6 @@ ex) image name: "M33333_human_CR_000" -> chunk name: "M33333_human_CR"
 
 """
 
-
 compatible_major_version = "1.8"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
@@ -22,6 +21,7 @@ doc = Metashape.app.document
 chunks = doc.chunks
 
 for chunk in chunks:
-    camera_name = str(chunk.cameras[0].label)
-    chunk_name = "_".join(camera_name.split("_")[:3])
-    chunk.label = chunk_name
+    if chunk.enabled is True:
+        camera_name = str(chunk.cameras[0].label)
+        chunk_name = "_".join(camera_name.split("_")[:3])
+        chunk.label = chunk_name
