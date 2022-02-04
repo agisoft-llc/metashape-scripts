@@ -18,35 +18,25 @@ if found_major_version != compatible_major_version:
 doc = Metashape.app.document
 chunks = doc.chunks
 
-pow_1 = 0   #threshold power when compo_number > 10
-thld_1 = 10000   #threshold
-pow_2 = 1   #threshold power when compo_number =< 10
-thld_2 = 10000   #basic threshold when compo_number =< 10
-
-def removeComp(chunk):
-    chunk.model.removeComponents(thld_1)
-    st = chunk.model.statistics()
-    print("threshold_" + str(thld_1))
-    print("remaining_" + str(st.components))
-    return st.components
+def removeSmallComponents(model, faces_threshold):
+    model.removeComponents(faces_threshold)
+    stats = model.statistics()
+    print("After removing small components with faces_threshold={}: {} faces in {} components left"
+          .format(faces_threshold, stats.faces, stats.components))
+    return stats
 
 for chunk in chunks:
     if chunk.enabled is True:
         stats = chunk.model.statistics()
-        compo_number = stats.components
-        print(compo_number)
+        print("Model has {} faces in {} components".format(stats.faces, stats.components))
         
-        while compo_number != 1:
-            if compo_number > 10:
-                pow_1 = pow_1 + 1
-                thld_1 = 1000*10**pow_1   #increase exponentially
-                thld_2 = thld_1
-                compo_number = removeComp(chunk)
-             
-            elif compo_number == 0:
-                break
-            
-            else:
-                pow_2 = pow_2 + 1
-                thld_1 = thld_2 * pow_2
-                compo_number = removeComp(chunk)
+        while stats.components > 1:
+            component_avg_faces = math.ceil(stats.faces / stats.components)
+            # the largest component is for sure bigger then average component faces number, so we will filter only small components
+            # probably there are some small components left - so we will continue our while-loop if needed
+            faces_threshold = component_avg_faces
+            new_stats = removeSmallComponents(chunk.model, faces_threshold)
+
+            assert(new_stats.components < stats.components) # checking that we deleted at least the smallest something (to ensure that script works fine)
+            assert(new_stats.components > 0) # checking that the largest component is still there (to ensure that script works fine)
+            stats = new_stats
