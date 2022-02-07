@@ -21,4 +21,4 @@ for chunk in chunks:
     if chunk.enabled is True:
         chunk.exportModel(path = "/".join(doc.path.split("/")[:-1]) + "/" + chunk.label + "_models/" + chunk.label + ".obj")
 # export each quarity models of each chunks
-# chunk.label + quarity["high" or "low"] + ".stl"
+# chunk.label + quarity["high" or "low"] + ".obj"
