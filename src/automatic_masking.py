@@ -41,10 +41,6 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-# Supported >= 1.7.4
-if int(Metashape.app.version.split('.')[2]) < 4:
-    raise Exception("Incompatible Metashape version: {} found, but >= 1.7.4 required".format(Metashape.app.version))
-
 
 def generate_automatic_background_masks_with_rembg():
     try:
