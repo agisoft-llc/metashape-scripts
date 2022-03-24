@@ -1,6 +1,6 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 #
-# Based on https://github.com/danielgatis/rembg (tested on rembg==1.0.27)
+# Based on https://github.com/danielgatis/rembg (tested on rembg==2.0.10)
 #
 # See also examples of rembg masking:
 # - https://peterfalkingham.com/2021/07/19/rembg-a-phenomenal-ai-based-background-remover/
@@ -10,7 +10,7 @@
 #
 # 0. Note that you will need around 5 GB of free space in metashape-pro installation location
 # 1. cd .../metashape-pro
-#    LD_LIBRARY_PATH=`pwd`/python/lib/ python/bin/python3.8 -m pip install rembg==1.0.27 matplotlib==3.5.1 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+#    LD_LIBRARY_PATH=`pwd`/python/lib/ python/bin/python3.8 -m pip install rembg==2.0.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 # 2. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy automatic_masking.py script to /home/<username>/.local/share/Agisoft/Metashape Pro/scripts/
 #
@@ -18,7 +18,7 @@
 #
 # 0. Note that you will need around 14 GB of free space on drive C:
 # 1. Launch cmd.exe with the administrator privileges
-# 2. "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install --use-feature=2020-resolver rembg==1.0.27 matplotlib==3.5.1 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+# 2. "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install --use-feature=2020-resolver rembg==2.0.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 # 3. To not encounter error "Attempted to compile AOT function without the compiler used by numpy.distutils present. Cannot find suitable msvc.":
 # 3.1 Open https://visualstudio.microsoft.com/visual-cpp-build-tools/
 # 3.2 Download and launch 'Build Tools'
@@ -112,11 +112,10 @@ def generate_automatic_background_masks_with_rembg():
             img = img.resize((photo_image.width // downscale, photo_image.height // downscale))
         img = np.array(img)
 
-        model_name = "u2net"
         with torch_lock:
-            model = rembg.bg.get_model(model_name)
-            mask = rembg.u2net.detect.predict(model, img).convert("L")
-        mask = np.array(mask.resize((photo_image.width, photo_image.height)))
+            mask = rembg.remove(img, alpha_matting=False, only_mask=True)
+        mask = Image.fromarray(mask).resize((photo_image.width, photo_image.height))
+        mask = np.array(mask)
 
         mask = (mask > 10)
         mask = scipy.ndimage.morphology.binary_dilation(mask, iterations=3)
