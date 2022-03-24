@@ -42,7 +42,7 @@ if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
-def generate_automatic_background_masks_with_rembg():
+def generate_automatic_background_masks_with_rembg(chunk=None):
     try:
         import rembg
         import rembg.bg
@@ -55,8 +55,8 @@ def generate_automatic_background_masks_with_rembg():
         raise
 
     print("Script started...")
-    doc = Metashape.app.document
-    chunk = doc.chunk
+    if chunk is None:
+        chunk = Metashape.app.document.chunk
 
     cameras = chunk.cameras
 
