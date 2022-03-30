@@ -20,4 +20,4 @@ chunks = doc.chunks
 
 for chunk in chunks:
     if chunk.enabled is True:
-        doc.save(path = "/".join(doc.path.split("/")[:-1]) + "/" + chunk.label + "_chunks/" + chunk.label + ".psx", chunks = [doc.chunk])
+        doc.save(path = "/".join(doc.path.split("/")[:-1]) + "/" + chunk.label + "_chunks/" + chunk.label + ".psx", chunks = [chunk])
