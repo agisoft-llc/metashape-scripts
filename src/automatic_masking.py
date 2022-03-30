@@ -101,7 +101,20 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
         image_mask_path = str(image_mask_dir / image_mask_name) + "_mask.png"
 
         photo_image = c.photo.image()
-        img = np.frombuffer(photo_image.tostring(), dtype={'U8': np.uint8, 'U16': np.uint16}[photo_image.data_type]).reshape(photo_image.height, photo_image.width, photo_image.cn)[:, :, :3]
+
+        image_types_mapping = {'U8': np.uint8, 'U16': np.uint16}
+        if photo_image.data_type not in image_types_mapping:
+            print("Image type is not supported yet: {}".format(photo_image.data_type))
+        if photo_image.cn not in {3, 4}:
+            print("Image channels number not supported yet: {}".format(photo_image.cn))
+        img = np.frombuffer(photo_image.tostring(), dtype=image_types_mapping[photo_image.data_type]).reshape(photo_image.height, photo_image.width, photo_image.cn)[:, :, :3]
+
+        if photo_image.data_type == "U16":
+            assert img.dtype == np.uint16
+            img = img - np.min(img)
+            img = np.float32(img) * 255.0 / np.max(img)
+            img = (img + 0.5).astype(np.uint8)
+        assert img.dtype == np.uint8
 
         img = Image.fromarray(img)
         max_downscale = 4
