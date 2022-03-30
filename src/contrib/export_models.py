@@ -19,6 +19,7 @@ chunks = doc.chunks
 
 for chunk in chunks:
     if chunk.enabled is True:
-        chunk.exportModel(path = "/".join(doc.path.split("/")[:-1]) + "/" + chunk.label + "_models/" + chunk.label + ".obj")
+        chunk.exportModel(path = "/".join(doc.path.split("/")[:-1]) + "/" + chunk.label + "_models/" + chunk.label + ".obj",
+        texture_format=Metashape.ImageFormat.ImageFormatPNG)
 # export each quarity models of each chunks
 # chunk.label + quarity["high" or "low"] + ".obj"
