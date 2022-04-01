@@ -1,4 +1,5 @@
 import Metashape
+import math
 
 """
 Metashape Mesh debris Filter Script (v 1.1)
