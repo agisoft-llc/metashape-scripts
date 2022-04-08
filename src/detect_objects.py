@@ -85,6 +85,19 @@ if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
+def pandas_append(df, row, ignore_index=False):
+    import pandas as pd
+    if isinstance(row, pd.DataFrame):
+        result = pd.concat([df, row], ignore_index=ignore_index)
+    elif isinstance(row, pd.core.series.Series):
+        result = pd.concat([df, row.to_frame().T], ignore_index=ignore_index)
+    elif isinstance(row, dict):
+        result = pd.concat([df, pd.DataFrame(row, index=[0], columns=df.columns)])
+    else:
+        raise RuntimeError("pandas_append: unsupported row type - {}".format(type(row)))
+    return result
+
+
 class DetectObjectsDlg(QtWidgets.QDialog):
 
     def __init__(self, parent):
@@ -386,7 +399,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
             cv2.imwrite(self.dir_train_subtiles + empty_tile_name, empty_tile)
 
             # See https://github.com/weecology/DeepForest/issues/216
-            all_annotations = all_annotations.append({'image_path': empty_tile_name, 'xmin': '0', 'ymin': '0', 'xmax': '0', 'ymax': '0', 'label': 'Tree'}, ignore_index=True)
+            all_annotations = pandas_append(all_annotations, {'image_path': empty_tile_name, 'xmin': '0', 'ymin': '0', 'xmax': '0', 'ymax': '0', 'label': 'Tree'}, ignore_index=True)
 
         nempty_tiles = 0
 
@@ -483,10 +496,10 @@ class DetectObjectsDlg(QtWidgets.QDialog):
 
                         nannotated_tiles += 1
                         for (xmin, ymin), (xmax, ymax) in tile_annotations_version:
-                            all_annotations = all_annotations.append({'image_path': tile_name, 'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax, 'label': 'Tree'}, ignore_index=True)
+                            all_annotations = pandas_append(all_annotations, {'image_path': tile_name, 'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax, 'label': 'Tree'}, ignore_index=True)
                         if len(tile_annotations_version) == 0:
                             if self.tiles_without_annotations_supported:
-                                all_annotations = all_annotations.append({'image_path': tile_name, 'xmin': '0', 'ymin': '0', 'xmax': '0', 'ymax': '0', 'label': 'Tree'}, ignore_index=True)
+                                all_annotations = pandas_append(all_annotations, {'image_path': tile_name, 'xmin': '0', 'ymin': '0', 'xmax': '0', 'ymax': '0', 'label': 'Tree'}, ignore_index=True)
                             nempty_tiles += 1
 
                         cv2.imwrite(self.dir_train_subtiles + tile_name, tile_version)
@@ -788,9 +801,9 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                                     continue
                             xmin, xmax = map(lambda x: fromx + x, [xmin, xmax])
                             ymin, ymax = map(lambda y: fromy + y, [ymin, ymax])
-                            subtile_inner_trees_debug = subtile_inner_trees_debug.append(row, ignore_index=True)
+                            subtile_inner_trees_debug = pandas_append(subtile_inner_trees_debug, row, ignore_index=True)
                             row.xmin, row.ymin, row.xmax, row.ymax = xmin, ymin, xmax, ymax
-                            subtile_inner_trees = subtile_inner_trees.append(row, ignore_index=True)
+                            subtile_inner_trees = pandas_append(subtile_inner_trees, row, ignore_index=True)
 
                         if self.debug_tiles:
                             img_with_trees = self.debug_draw_trees(subtile, subtile_trees)
@@ -862,7 +875,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                 for idx, row in a.iterrows():
                     if row.label == "Suppressed":
                         continue
-                    big_tile_trees = big_tile_trees.append(row, ignore_index=True)
+                    big_tile_trees = pandas_append(big_tile_trees, row, ignore_index=True)
 
             idx_on_borders = []
             for idx, rowA in big_tile_trees.iterrows():
