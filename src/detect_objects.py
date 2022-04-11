@@ -625,7 +625,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
             stages.append(A.HueSaturationValue(hue_shift_limit=360, sat_shift_limit=30, val_shift_limit=20, always_apply=True))
         stages.append(A.ISONoise(p=0.5))
         if self.augment_colors:
-            stages.append(A.RandomBrightness(limit=0.4, p=0.5))
+            stages.append(A.RandomBrightnessContrast(brightness_limit=0.4, contrast_limit=0, p=0.5))
 
         transform = A.Compose(stages)
 
