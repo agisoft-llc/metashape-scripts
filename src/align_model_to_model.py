@@ -157,6 +157,7 @@ def align_two_point_clouds(points1_source, points2_target, scale_ratio=None, tar
     T2[:3, 3] = c2.reshape(3)
 
     M = np.dot(T2, np.dot(transformation, np.dot(S, T1)))
+    M = Metashape.Matrix(M)
     print("Estimated transformation matrix:")
     print(M)
     Metashape.app.update()
@@ -429,6 +430,36 @@ class AlignModelDlg(QtWidgets.QDialog):
 
         self.exec()
 
+    def get_model_T(self, model):
+        world_crs = self.chunk.crs
+        world_transform = self.chunk.transform.matrix
+
+        pt0 = world_transform.translation()
+        pt0 = world_crs.project(pt0)
+        pt0.z = 0
+        pt0 = world_crs.unproject(pt0)
+        Tlocal = world_crs.localframe(pt0)
+
+        T = Tlocal * world_transform
+        return T, Tlocal
+
+    def get_dense_cloud_T(self, dense_cloud):
+        if dense_cloud.crs is None:
+            world_crs = self.chunk.crs
+            world_transform = self.chunk.transform.matrix * dense_cloud.transform
+        else:
+            world_crs = dense_cloud.crs
+            world_transform = dense_cloud.transform
+
+        pt0 = world_transform.translation()
+        pt0 = world_crs.project(pt0)
+        pt0.z = 0
+        pt0 = world_crs.unproject(pt0)
+        Tlocal = world_crs.localframe(pt0)
+
+        T = Tlocal * world_transform
+        return T, Tlocal
+
     def align(self):
         print("Script started...")
 
@@ -490,24 +521,37 @@ class AlignModelDlg(QtWidgets.QDialog):
 
         if isModel1:
             assert(self.chunk.model.key == key1)
-            try:
-                matrix = self.chunk.transform.matrix
-                self.chunk.model.transform(Metashape.Matrix(M12) * matrix)
-            except AttributeError:
-                nvertices = len(self.chunk.model.vertices)
-                matrix = Metashape.Matrix(M12)
-                vertices = self.chunk.model.vertices
-                for i in range(nvertices):
-                    vertices[i].coord = matrix.mulp(vertices[i].coord)
-                vertices.resize(nvertices)
+            model1 = self.chunk.model
+            T1, Tlocal1 = self.get_model_T(model1)
+        else:
+            assert(self.chunk.dense_cloud.key == key1)
+            dense_cloud1 = self.chunk.dense_cloud
+            T1, Tlocal1 = self.get_dense_cloud_T(dense_cloud1)
+
+        if isModel2:
+            model2 = None
+            for model in self.chunk.models:
+                if model.key == key2:
+                    model2 = model
+            assert model2 is not None
+            _, Tlocal2 = self.get_model_T(model2)
+        else:
+            dense_cloud2 = None
+            for dense_cloud in self.chunk.dense_clouds:
+                if dense_cloud.key == key2:
+                    dense_cloud2 = dense_cloud
+            assert dense_cloud2 is not None
+            _, Tlocal2 = self.get_dense_cloud_T(dense_cloud2)
+
+        shift21 = Tlocal2 * Tlocal1.inv()
+
+        if isModel1:
+            assert(self.chunk.model.key == key1)
+            self.chunk.model.transform(T1.inv() * shift21.inv() * M12 * T1)
             self.chunk.model = None
         else:
             assert(self.chunk.dense_cloud.key == key1)
-            matrix = self.chunk.transform.matrix
-            if self.chunk.dense_cloud.transform is not None:
-                matrix = self.chunk.dense_cloud.transform * matrix
-            self.chunk.dense_cloud.transform = Metashape.Matrix(M12) * matrix
-            self.chunk.dense_cloud = None
+            self.chunk.dense_cloud.transform = self.chunk.dense_cloud.transform * T1.inv() * shift21.inv() * M12 * T1
 
         print("Script finished!")
         self.reject()
