@@ -237,5 +237,5 @@ def mask_by_color():
 
 
 label = "Scripts/Masking by color"
-Metashape.app.addMenuItem(label, mask_by_color)
+Metashape.app.addMenuItem(label, enhanced_mask_by_color)
 print("To execute this script press {}".format(label))
