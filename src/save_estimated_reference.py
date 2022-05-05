@@ -95,9 +95,13 @@ class CameraStats():
         location = sensor.antenna.location
         if location is None:
             location = sensor.antenna.location_ref
+        if location is None:
+            location = Metashape.Vector([0.0, 0.0, 0.0])
         rotation = sensor.antenna.rotation
         if rotation is None:
             rotation = sensor.antenna.rotation_ref
+        if rotation is None:
+            rotation = Metashape.Vector([0.0, 0.0, 0.0])
         return Metashape.Matrix.Diag((1, -1, -1, 1)) * Metashape.Matrix.Translation(location) * Metashape.Matrix.Rotation(Metashape.Utils.ypr2mat(rotation))
 
     def makeRotationDx(self, alpha):
