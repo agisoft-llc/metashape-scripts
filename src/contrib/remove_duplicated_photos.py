@@ -8,7 +8,7 @@ Matjaz Mori, CPA, May 2022
 The script will remove all duplicated photos (photos referenced to the same file) from Metashape project. 
 """
 
-compatible_major_version = "1.7"
+compatible_major_version = "1.8"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
