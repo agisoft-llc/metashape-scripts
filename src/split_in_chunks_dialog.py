@@ -15,8 +15,14 @@ FILTERING = {"3": Metashape.NoFiltering,
              "1": Metashape.ModerateFiltering,
              "2": Metashape.AggressiveFiltering}
 
-MESH = {"Arbitrary": Metashape.SurfaceType.Arbitrary,
+MESH = {"Mesh From Depth Maps": Metashape.DataSource.DepthMapsData,
+        "Arbitrary": Metashape.SurfaceType.Arbitrary,
         "Height Field": Metashape.SurfaceType.HeightField}
+
+MESH_FACE_COUNT = {"High face count": Metashape.FaceCount.HighFaceCount,
+                   "Medium face count": Metashape.FaceCount.MediumFaceCount,
+                   "Low face count": Metashape.FaceCount.LowFaceCount,
+                   "Custom face count": Metashape.FaceCount.CustomFaceCount}
 
 DENSE = {"Ultra":  1,
          "High":   2,
@@ -76,6 +82,14 @@ class SplitDlg(QtWidgets.QDialog):
         for element in DENSE.keys():
             self.denseBox.addItem(element)
 
+        self.faceCountBox = QtWidgets.QComboBox()
+        for element in MESH_FACE_COUNT.keys():
+            self.faceCountBox.addItem(element)
+
+        self.edtFaceCustomCount = QtWidgets.QLineEdit()
+        self.edtFaceCustomCount.setPlaceholderText("Custom face count")
+        self.edtFaceCustomCount.setToolTip("Enter integer number of target faces count (will be used if 'Custom face count' was chosen above)")
+
         self.chkMerge = QtWidgets.QCheckBox("Merge Back")
         self.chkMerge.setToolTip("Merges back the processing products formed in the individual cells")
 
@@ -123,8 +137,11 @@ class SplitDlg(QtWidgets.QDialog):
         layout.addWidget(self.chkMesh, 0, 3)
         layout.addWidget(self.chkMerge, 0, 4)
 
+        layout.addWidget(self.faceCountBox, 1, 4, QtCore.Qt.AlignTop)
         layout.addWidget(self.meshBox, 1, 3, QtCore.Qt.AlignTop)
         layout.addWidget(self.denseBox, 1, 2, QtCore.Qt.AlignTop)
+
+        layout.addWidget(self.edtFaceCustomCount, 2, 4, QtCore.Qt.AlignTop)
 
         layout.addWidget(self.chkSave, 3, 2)
         layout.addWidget(self.btnP1, 3, 3)
@@ -193,6 +210,13 @@ class SplitDlg(QtWidgets.QDialog):
 
         quality = DENSE[self.denseBox.currentText()]
         mesh_mode = MESH[self.meshBox.currentText()]
+        face_count = MESH_FACE_COUNT[self.faceCountBox.currentText()]
+        face_count_custom = self.edtFaceCustomCount.text()
+        if face_count_custom != "":
+            try:
+                face_count_custom = int(face_count_custom)
+            except RuntimeError:
+                print("Custom face count should be an integer number, but '" + face_count_custom + "' found")
 
         doc = Metashape.app.document
         chunk = doc.chunk
@@ -298,12 +322,33 @@ class SplitDlg(QtWidgets.QDialog):
                         doc.save()
 
                 if buildMesh:
-                    if new_chunk.dense_cloud:
+                    if mesh_mode == Metashape.DataSource.DepthMapsData:
+                        try:
+                            keep_depth = True
+                            if not new_chunk.depth_maps:
+                                task = Metashape.Tasks.BuildDepthMaps()
+                                task.downscale = quality
+                                task.filter_mode = Metashape.FilterMode.MildFiltering
+                                task.reuse_depth = False
+                                task.subdivide_task = True
+                                task.apply(new_chunk)
+                                keep_depth = False
+
+                            new_chunk.buildModel(surface_type=Metashape.SurfaceType.Arbitrary,
+                                                 source_data=Metashape.DataSource.DepthMapsData,
+                                                 interpolation=Metashape.Interpolation.EnabledInterpolation,
+                                                 face_count=face_count,
+                                                 keep_depth=keep_depth,
+                                                 face_count_custom=face_count_custom)
+                        except RuntimeError:
+                            print("Can't build mesh for " + chunk.label)
+                    elif new_chunk.dense_cloud:
                         try:
                             new_chunk.buildModel(surface_type=mesh_mode,
                                                  source_data=Metashape.DataSource.DenseCloudData,
                                                  interpolation=Metashape.Interpolation.EnabledInterpolation,
-                                                 face_count=Metashape.FaceCount.HighFaceCount)
+                                                 face_count=face_count,
+                                                 face_count_custom=face_count_custom)
                         except RuntimeError:
                             print("Can't build mesh for " + chunk.label)
                     else:
@@ -311,7 +356,8 @@ class SplitDlg(QtWidgets.QDialog):
                             new_chunk.buildModel(surface_type=mesh_mode,
                                                  source_data=Metashape.DataSource.PointCloudData,
                                                  interpolation=Metashape.Interpolation.EnabledInterpolation,
-                                                 face_count=Metashape.FaceCount.HighFaceCount)
+                                                 face_count=face_count,
+                                                 face_count_custom=face_count_custom)
                         except RuntimeError:
                             print("Can't build mesh for " + chunk.label)
                     if autosave:
