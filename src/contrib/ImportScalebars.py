@@ -19,7 +19,7 @@ for chunk in chunks:
 	if chunk.enabled is True:
 		print(str(chunk))
 		i = 0
-		while i < 28: #28つのスケールバーを使う。一行ずつスケールバー作成を繰り返す。
+		while i < 24: #24つのスケールバーを使う。一行ずつスケールバー作成を繰り返す。
 		
 			l = list[i]
 			i += 1
@@ -29,16 +29,20 @@ for chunk in chunks:
 			
 			if (len(chunk.markers) > 0):
 				
-				for marker in chunk.markers:
+				for marker in chunk.markers: 
 					if (marker.label == p1):
 						scale1 = marker
 					if (marker.label == p2):
 						scale2 = marker
-						
-						scalebar = chunk.addScalebar(scale1,scale2)
-						scalebar.reference.distance = float(dist) 
-						scalebar.reference.accuracy = float(acc)
-
+				print(scale1)
+				print(scale2)
+				if scale1 != None and scale2 != None: 
+					scalebar = chunk.addScalebar(scale1,scale2)
+					scalebar.reference.distance = float(dist) 
+					scalebar.reference.accuracy = float(acc)
+					
+				else:
+					continue
 		chunk.updateTransform()
 
 #		camera = chunk.cameras[-1]
