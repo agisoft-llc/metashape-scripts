@@ -3,6 +3,7 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
 import Metashape
+import tempfile, pathlib
 from PySide2 import QtGui, QtCore, QtWidgets
 
 # Checking compatibility
@@ -30,14 +31,26 @@ class MaskByColor(QtWidgets.QDialog):
 
         self.pBar = QtWidgets.QProgressBar()
         self.pBar.setTextVisible(False)
-        self.pBar.setFixedSize(130, 50)
+        # self.pBar.setFixedSize(130, 50)
+
+        self.operTxt = QtWidgets.QLabel()
+        self.operTxt.setText("Operation:")
+        self.operTxt.setFixedSize(100, 25)
+
+        self.operValues = [("Replacement", Metashape.MaskOperation.MaskOperationReplacement),
+                           ("Union", Metashape.MaskOperation.MaskOperationUnion),
+                           ("Intersection", Metashape.MaskOperation.MaskOperationIntersection),
+                           ("Difference", Metashape.MaskOperation.MaskOperationDifference)]
+        self.operComboBox = QtWidgets.QComboBox()
+        for label, value in self.operValues:
+            self.operComboBox.addItem(label)
 
         self.selTxt = QtWidgets.QLabel()
         self.selTxt.setText("Apply to:")
         self.selTxt.setFixedSize(100, 25)
 
-        self.radioBtn_all = QtWidgets.QRadioButton("all cameras")
-        self.radioBtn_sel = QtWidgets.QRadioButton("selected cameras")
+        self.radioBtn_all = QtWidgets.QRadioButton("All cameras")
+        self.radioBtn_sel = QtWidgets.QRadioButton("Selected cameras")
         self.radioBtn_all.setChecked(True)
         self.radioBtn_sel.setChecked(False)
 
@@ -67,22 +80,21 @@ class MaskByColor(QtWidgets.QDialog):
         self.sldTol.setMinimum(0)
         self.sldTol.setMaximum(99)
 
-        hbox = QtWidgets.QHBoxLayout()
-        hbox.addStretch(1)
-        hbox.addWidget(self.pBar)
-        hbox.addWidget(self.btnP1)
-        hbox.addWidget(self.btnQuit)
-
         layout = QtWidgets.QGridLayout()
         layout.setSpacing(5)
-        layout.addWidget(self.selTxt, 0, 0)
-        layout.addWidget(self.radioBtn_all, 1, 0)
-        layout.addWidget(self.radioBtn_sel, 2, 0)
-        layout.addWidget(self.colTxt, 0, 1)
-        layout.addWidget(self.btnCol, 1, 1)
-        layout.addWidget(self.txtTol, 0, 2)
-        layout.addWidget(self.sldTol, 1, 2)
-        layout.addLayout(hbox, 3, 0, 5, 3)
+        layout.addWidget(self.operTxt, 0, 0)
+        layout.addWidget(self.operComboBox, 1, 0)
+        # layout.addWidget(self.selTxt, 0, 1)
+        layout.addWidget(self.radioBtn_all, 0, 1)
+        layout.addWidget(self.radioBtn_sel, 1, 1)
+        layout.addWidget(self.colTxt, 0, 2)
+        layout.addWidget(self.btnCol, 1, 2)
+        layout.addWidget(self.txtTol, 0, 3)
+        layout.addWidget(self.sldTol, 1, 3)
+
+        layout.addWidget(self.pBar, 2, 0, 1, 2)
+        layout.addWidget(self.btnP1, 2, 2)
+        layout.addWidget(self.btnQuit, 2, 3)
         self.setLayout(layout)
 
         proc_mask = lambda: self.maskColor()
@@ -156,18 +168,20 @@ class MaskByColor(QtWidgets.QDialog):
         color = self.color
         red, green, blue = color.red(), color.green(), color.blue()
 
+        _, mask_operation = self.operValues[self.operComboBox.currentIndex()]
+
         processed = 0
         for camera in mask_list:
-
-            for frame in camera.frames:
-                print(frame)
-                app.processEvents()
-                mask = Metashape.utils.createDifferenceMask(frame.photo.image(), (red, green, blue), tolerance, False)
-                m = Metashape.Mask()
-                m.setImage(mask)
-                frame.mask = m
-                processed += 1
-                self.pBar.setValue(int(processed / len(mask_list) / len(chunk.frames) * 100))
+            with tempfile.TemporaryDirectory() as temp_dir:
+                for frame_index, frame in enumerate(camera.frames):
+                    mask_file = str(pathlib.Path(temp_dir) / "mask_{key}_{frame}.png".format(key=camera.key, frame=frame_index + 1))
+                    print(frame)
+                    app.processEvents()
+                    mask = Metashape.utils.createDifferenceMask(frame.photo.image(), (red, green, blue), tolerance, False)
+                    mask.save(mask_file)
+                    processed += 1
+                    self.pBar.setValue(int(processed / len(mask_list) / len(chunk.frames) * 100))
+                    chunk.frames[frame_index].generateMasks(cameras=[camera.key], path=mask_file, masking_mode=Metashape.MaskingMode.MaskingModeFile, mask_operation=mask_operation)
 
         print("Masking finished. " + str(processed) + " images masked.")
 

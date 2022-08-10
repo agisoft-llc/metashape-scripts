@@ -51,9 +51,13 @@ def get_antenna_transform(sensor):
     location = sensor.antenna.location
     if location is None:
         location = sensor.antenna.location_ref
+    if location is None:
+        location = ps.Vector([0.0, 0.0, 0.0])
     rotation = sensor.antenna.rotation
     if rotation is None:
         rotation = sensor.antenna.rotation_ref
+    if rotation is None:
+        rotation = ps.Vector([0.0, 0.0, 0.0])
     return ps.Matrix.Diag((1, -1, -1, 1)) * ps.Matrix.Translation(location) * ps.Matrix.Rotation(ps.Utils.ypr2mat(rotation))
 
 

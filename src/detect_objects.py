@@ -1,5 +1,6 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 #
+# See https://agisoft.freshdesk.com/support/solutions/articles/31000162552-automatic-detection-of-objects-on-orthomosaic
 # Based on https://github.com/weecology/DeepForest (tested on deepforest==1.0.8)
 #
 # This is a neural network assistant for objects (trees/cars/sea lions/etc.) detection on orthomosaic.
@@ -12,13 +13,13 @@
 # How to install (Linux):
 #
 # 1. cd .../metashape-pro
-#    LD_LIBRARY_PATH=`pwd`/python/lib/ python/bin/python3.8 -m pip install albumentations==1.0.3 deepforest torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+#    LD_LIBRARY_PATH=`pwd`/python/lib/ python/bin/python3.8 -m pip install albumentations==1.0.3 deepforest pytorch-lightning==1.5.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 # 2. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy detect_objects.py script to /home/<username>/.local/share/Agisoft/Metashape Pro/scripts/
 #
 # How to install (Windows):
 #
-# 1. Download gdal, rasterio and fiona packages (for Python 3.8 amd64, i.e. download files ...cp38‑cp38‑win_amd64.whl)
+# 1. Download latest gdal, rasterio and fiona packages (for Python 3.8 amd64, i.e. download files ending with ...cp38‑cp38‑win_amd64.whl)
 #    gdal     - https://www.lfd.uci.edu/~gohlke/pythonlibs/#gdal
 #    rasterio - https://www.lfd.uci.edu/~gohlke/pythonlibs/#rasterio
 #    fiona    - https://www.lfd.uci.edu/~gohlke/pythonlibs/#fiona
@@ -27,11 +28,11 @@
 # 4. Change directory to Downloads directory (where three downloaded files are located):
 #   cd %USERPROFILE%/Downloads
 # 5. Install them one by one:
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install GDAL-3.3.1-cp38-cp38-win_amd64.whl
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install rasterio-1.2.6-cp38-cp38-win_amd64.whl
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install Fiona-1.8.20-cp38-cp38-win_amd64.whl
+#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install GDAL‑3.4.2‑cp38‑cp38‑win_amd64.whl
+#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install rasterio‑1.2.10‑cp38‑cp38‑win_amd64.whl
+#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install Fiona‑1.8.21‑cp38‑cp38‑win_amd64.whl
 # 6. Install pytorch with CUDA support and deepforest:
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install albumentations==1.0.3 deepforest torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install albumentations==1.0.3 deepforest pytorch-lightning==1.5.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 # 7. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy detect_objects.py script to C:/Users/<username>/AppData/Local/Agisoft/Metashape Pro/scripts/
 #
@@ -83,6 +84,19 @@ compatible_major_version = "1.8"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
+
+
+def pandas_append(df, row, ignore_index=False):
+    import pandas as pd
+    if isinstance(row, pd.DataFrame):
+        result = pd.concat([df, row], ignore_index=ignore_index)
+    elif isinstance(row, pd.core.series.Series):
+        result = pd.concat([df, row.to_frame().T], ignore_index=ignore_index)
+    elif isinstance(row, dict):
+        result = pd.concat([df, pd.DataFrame(row, index=[0], columns=df.columns)])
+    else:
+        raise RuntimeError("pandas_append: unsupported row type - {}".format(type(row)))
+    return result
 
 
 class DetectObjectsDlg(QtWidgets.QDialog):
@@ -386,7 +400,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
             cv2.imwrite(self.dir_train_subtiles + empty_tile_name, empty_tile)
 
             # See https://github.com/weecology/DeepForest/issues/216
-            all_annotations = all_annotations.append({'image_path': empty_tile_name, 'xmin': '0', 'ymin': '0', 'xmax': '0', 'ymax': '0', 'label': 'Tree'}, ignore_index=True)
+            all_annotations = pandas_append(all_annotations, {'image_path': empty_tile_name, 'xmin': '0', 'ymin': '0', 'xmax': '0', 'ymax': '0', 'label': 'Tree'}, ignore_index=True)
 
         nempty_tiles = 0
 
@@ -483,10 +497,10 @@ class DetectObjectsDlg(QtWidgets.QDialog):
 
                         nannotated_tiles += 1
                         for (xmin, ymin), (xmax, ymax) in tile_annotations_version:
-                            all_annotations = all_annotations.append({'image_path': tile_name, 'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax, 'label': 'Tree'}, ignore_index=True)
+                            all_annotations = pandas_append(all_annotations, {'image_path': tile_name, 'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax, 'label': 'Tree'}, ignore_index=True)
                         if len(tile_annotations_version) == 0:
                             if self.tiles_without_annotations_supported:
-                                all_annotations = all_annotations.append({'image_path': tile_name, 'xmin': '0', 'ymin': '0', 'xmax': '0', 'ymax': '0', 'label': 'Tree'}, ignore_index=True)
+                                all_annotations = pandas_append(all_annotations, {'image_path': tile_name, 'xmin': '0', 'ymin': '0', 'xmax': '0', 'ymax': '0', 'label': 'Tree'}, ignore_index=True)
                             nempty_tiles += 1
 
                         cv2.imwrite(self.dir_train_subtiles + tile_name, tile_version)
@@ -611,7 +625,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
             stages.append(A.HueSaturationValue(hue_shift_limit=360, sat_shift_limit=30, val_shift_limit=20, always_apply=True))
         stages.append(A.ISONoise(p=0.5))
         if self.augment_colors:
-            stages.append(A.RandomBrightness(limit=0.4, p=0.5))
+            stages.append(A.RandomBrightnessContrast(brightness_limit=0.4, contrast_limit=0, p=0.5))
 
         transform = A.Compose(stages)
 
@@ -788,9 +802,9 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                                     continue
                             xmin, xmax = map(lambda x: fromx + x, [xmin, xmax])
                             ymin, ymax = map(lambda y: fromy + y, [ymin, ymax])
-                            subtile_inner_trees_debug = subtile_inner_trees_debug.append(row, ignore_index=True)
+                            subtile_inner_trees_debug = pandas_append(subtile_inner_trees_debug, row, ignore_index=True)
                             row.xmin, row.ymin, row.xmax, row.ymax = xmin, ymin, xmax, ymax
-                            subtile_inner_trees = subtile_inner_trees.append(row, ignore_index=True)
+                            subtile_inner_trees = pandas_append(subtile_inner_trees, row, ignore_index=True)
 
                         if self.debug_tiles:
                             img_with_trees = self.debug_draw_trees(subtile, subtile_trees)
@@ -862,7 +876,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                 for idx, row in a.iterrows():
                     if row.label == "Suppressed":
                         continue
-                    big_tile_trees = big_tile_trees.append(row, ignore_index=True)
+                    big_tile_trees = pandas_append(big_tile_trees, row, ignore_index=True)
 
             idx_on_borders = []
             for idx, rowA in big_tile_trees.iterrows():
