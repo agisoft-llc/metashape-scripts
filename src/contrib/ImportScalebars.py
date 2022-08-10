@@ -32,8 +32,6 @@ for chunk in chunks:
 				for marker in chunk.markers:
 					if (marker.label == p1):
 						scale1 = marker
-						
-				for marker in chunk.markers:
 					if (marker.label == p2):
 						scale2 = marker
 						
