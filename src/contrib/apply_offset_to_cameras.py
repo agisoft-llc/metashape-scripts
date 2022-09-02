@@ -42,6 +42,12 @@ def apply_xyz_offset():
     if not len(doc.chunks):
         raise Exception("No chunks!")
 
+    only_selected = False
+    if len([c for c in Metashape.app.document.chunk.cameras if c.selected]) > 0:
+        # if at least one camera is selected - apply offset only to selected cameras
+        only_selected = True
+        print("cameras selection detected - applying offset only to selected cameras...")
+
     offset_x = get_input("X")
     if offset_x is None:
         return
@@ -52,12 +58,16 @@ def apply_xyz_offset():
     if offset_z is None:
         return
 
+    ncameras = 0
     for camera in chunk.cameras:
+        if only_selected and not camera.selected:
+            continue
         if camera.reference.location:
             coord = camera.reference.location
             camera.reference.location = Metashape.Vector(
                 [coord.x + offset_x, coord.y + offset_y, coord.z + offset_z])
-    print("Offset dx={}, dy={}, dz={} applied successfully".format(offset_x, offset_y, offset_z))
+            ncameras += 1
+    print("Offset dx={}, dy={}, dz={} applied to {} cameras successfully".format(offset_x, offset_y, offset_z, ncameras))
 
 
 label = "Scripts/Add reference offset"
