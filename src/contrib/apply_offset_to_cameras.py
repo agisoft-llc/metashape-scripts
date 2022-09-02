@@ -29,65 +29,37 @@ if found_major_version != compatible_major_version:
         found_major_version, compatible_major_version))
 
 
-def get_input():
+def get_input(axis_name):
     offset = Metashape.app.getFloat(
-        "Please specify offset value:", 0.)
+        "Please specify offset value for axis {}:".format(axis_name), 0.)
     return offset
 
 
-def apply_x_offset():
+def apply_xyz_offset():
     doc = Metashape.app.document
     chunk = doc.chunk
 
     if not len(doc.chunks):
         raise Exception("No chunks!")
 
-    offset = get_input()
+    offset_x = get_input("X")
+    if offset_x is None:
+        return
+    offset_y = get_input("Y")
+    if offset_y is None:
+        return
+    offset_z = get_input("Z")
+    if offset_z is None:
+        return
 
     for camera in chunk.cameras:
         if camera.reference.location:
             coord = camera.reference.location
             camera.reference.location = Metashape.Vector(
-                [coord.x + offset, coord.y, coord.z])
-    print("Offset applied successfully.")
+                [coord.x + offset_x, coord.y + offset_y, coord.z + offset_z])
+    print("Offset dx={}, dy={}, dz={} applied successfully".format(offset_x, offset_y, offset_z))
 
 
-def apply_y_offset():
-    doc = Metashape.app.document
-    chunk = doc.chunk
-
-    if not len(doc.chunks):
-        raise Exception("No chunks!")
-
-    offset = get_input()
-
-    for camera in chunk.cameras:
-        if camera.reference.location:
-            coord = camera.reference.location
-            camera.reference.location = Metashape.Vector(
-                [coord.x, coord.y + offset, coord.z])
-    print("Offset applied successfully.")
-
-
-def apply_z_offset():
-    doc = Metashape.app.document
-    chunk = doc.chunk
-
-    if not len(doc.chunks):
-        raise Exception("No chunks!")
-
-    offset = get_input()
-
-    for camera in chunk.cameras:
-        if camera.reference.location:
-            coord = camera.reference.location
-            camera.reference.location = Metashape.Vector(
-                [coord.x, coord.y, coord.z + offset])
-    print("Offset applied successfully.")
-
-
-Metashape.app.addMenuItem("Cam_offset/Add reference X", apply_x_offset)
-Metashape.app.addMenuItem("Cam_offset/Add reference Y", apply_y_offset)
-Metashape.app.addMenuItem("Cam_offset/Add reference Z", apply_z_offset)
-
-print("To execute this script select an item in the 'Cam_offset' menu.")
+label = "Scripts/Add reference offset"
+Metashape.app.addMenuItem(label, apply_xyz_offset)
+print("To execute this script press {}".format(label))
