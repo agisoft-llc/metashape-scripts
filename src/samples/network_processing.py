@@ -11,7 +11,7 @@ def find_files(folder, types):
     return [entry.path for entry in os.scandir(folder) if (entry.is_file() and os.path.splitext(entry.name)[1].lower() in types)]
 
 if len(sys.argv) < 3:
-    print("Usage: general_workflow.py <image_folder> <output_folder>")
+    print("Usage: network_processing.py <image_folder> <output_folder>")
     sys.exit(1)
 
 image_folder = sys.argv[1]
