@@ -7,7 +7,7 @@
 # e.g., if the CRS is a Local System or a Cartographic Reference System,
 # one may provide an offset in meters, respectively for the East, North
 # and altitude direction.
-# if the CRS is WGS84, one has to to provide the shift in degreees for
+# if the CRS is WGS84, one has to provide the shift in degreees for
 # latitude and longitude and meters for altitude.
 #
 # This script may be useful when one has to correct (e.g., due to a base shift)
