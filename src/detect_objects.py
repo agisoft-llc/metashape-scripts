@@ -77,14 +77,23 @@
 import Metashape
 import pathlib, shutil, os, time
 from PySide2 import QtGui, QtCore, QtWidgets
+from modules.pip_auto_install import pip_install
 
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
+pip_install("""-f https://download.pytorch.org/whl/torch_stable.html
+-f https://vineg.github.io/python-wheels/wheels.html
+albumentations==1.0.3
+deepforest
+pytorch-lightning==1.5.10
+torch==1.9.0+cu111
+torchvision==0.10.0+cu111
+torchaudio===0.9.0""")
 
 def pandas_append(df, row, ignore_index=False):
     import pandas as pd

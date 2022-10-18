@@ -4,13 +4,9 @@
 
 import Metashape
 from PySide2 import QtGui, QtCore, QtWidgets
+from modules.pip_auto_install import pip_install
 
-try:
-    import numpy as np
-except ImportError:
-    print("Please ensure that you installed numpy via 'pip install numpy' - see https://agisoft.freshdesk.com/support/solutions/articles/31000136860-how-to-install-external-python-module-to-metashape-professional-package")
-    raise
-
+pip_install("numpy==1.*")
 
 class ExportDepthDlg(QtWidgets.QDialog):
 

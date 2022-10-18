@@ -8,7 +8,7 @@
 #
 # How to install (Linux):
 #
-# 0. Note that you will need around 5 GB of free space in metashape-pro installation location
+# 0. Note that you will need around 5 GB of free space in metashape-pro installation location.
 # 1. cd .../metashape-pro
 #    LD_LIBRARY_PATH=`pwd`/python/lib/ python/bin/python3.8 -m pip install rembg==2.0.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 # 2. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
@@ -34,13 +34,15 @@ import pathlib
 import Metashape
 import multiprocessing
 import concurrent.futures
+from modules.pip_auto_install import pip_install
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
+pip_install('''rembg==2.0.24''')
 
 def generate_automatic_background_masks_with_rembg(chunk=None):
     try:
@@ -53,6 +55,7 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
     except ImportError:
         print("Please ensure that you installed torch and rembg - see instructions in the script")
         raise
+
 
     print("Script started...")
     if chunk is None:
@@ -71,6 +74,7 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
     masks_dirs_created = set()
     cameras_by_masks_dir = {}
     for i, c in enumerate(cameras):
+        if (not c.photo): continue
         input_image_path = c.photo.path
         image_mask_dir = pathlib.Path(input_image_path).parent / 'masks'
         if image_mask_dir.exists() and str(image_mask_dir) not in masks_dirs_created:
@@ -91,6 +95,7 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
     torch_lock = multiprocessing.Lock()
 
     def process_camera(image_mask_dir, c, camera_index):
+        if (not c.photo): return
         input_image_path = c.photo.path
         print("{}/{} processing: {}".format(camera_index + 1, len(cameras), input_image_path))
         image_mask_name = pathlib.Path(input_image_path).name.split(".")
@@ -164,5 +169,6 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
 
 
 label = "Scripts/Automatic background masking"
+
 Metashape.app.addMenuItem(label, generate_automatic_background_masks_with_rembg)
 print("To execute this script press {}".format(label))

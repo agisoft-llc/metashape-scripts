@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -36,7 +36,7 @@ def import_external_depth():
 
     print("Saving preprocessed images to " + str(preprocessed_directory))
 
-    Metashape.app.document.chunk.importLaserScans(filenames = depth_images, color_filenames = color_images, image_path = str(preprocessed_directory) + "/{filename}.tif")
+    Metashape.app.document.chunk.importDepthImages(filenames = depth_images, color_filenames = color_images, image_path = str(preprocessed_directory) + "/{filename}.tif")
 
 label = "Scripts/Import external depth"
 Metashape.app.addMenuItem(label, import_external_depth)

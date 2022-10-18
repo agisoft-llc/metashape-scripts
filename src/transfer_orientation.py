@@ -14,10 +14,11 @@
 #
 
 import Metashape
+import datetime as dt
 from datetime import datetime, timedelta
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -54,7 +55,7 @@ def parse_datetime(time):
     try:
         return datetime.strptime(time, "%Y:%m:%d %H:%M:%S")
     except:
-        return datetime(datetime.MINYEAR, 1, 1)
+        return datetime(dt.MINYEAR, 1, 1)
 
 
 def get_camera_meta(cam):
