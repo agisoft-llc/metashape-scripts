@@ -56,7 +56,6 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
         print("Please ensure that you installed torch and rembg - see instructions in the script")
         raise
 
-
     print("Script started...")
     if chunk is None:
         chunk = Metashape.app.document.chunk
