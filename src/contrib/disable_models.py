@@ -10,7 +10,7 @@ This scrip disable current model of chunks.
 It is useful when you want to make models different quality in one batch process.
 """
 
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
