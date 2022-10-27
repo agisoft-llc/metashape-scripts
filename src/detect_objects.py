@@ -12,29 +12,15 @@
 #
 # How to install (Linux):
 #
-# 1. cd .../metashape-pro
-#    LD_LIBRARY_PATH=`pwd`/python/lib/ python/bin/python3.8 -m pip install albumentations==1.0.3 deepforest pytorch-lightning==1.5.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-# 2. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
+# 1. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy detect_objects.py script to /home/<username>/.local/share/Agisoft/Metashape Pro/scripts/
+# 2. Restart Metashape.
 #
 # How to install (Windows):
 #
-# 1. Download latest gdal, rasterio and fiona packages (for Python 3.8 amd64, i.e. download files ending with ...cp38‑cp38‑win_amd64.whl)
-#    gdal     - https://www.lfd.uci.edu/~gohlke/pythonlibs/#gdal
-#    rasterio - https://www.lfd.uci.edu/~gohlke/pythonlibs/#rasterio
-#    fiona    - https://www.lfd.uci.edu/~gohlke/pythonlibs/#fiona
-# 2. Now you need to install these downloaded python packages wheel:
-# 3. Launch cmd.exe with the administrator privileges
-# 4. Change directory to Downloads directory (where three downloaded files are located):
-#   cd %USERPROFILE%/Downloads
-# 5. Install them one by one:
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install GDAL‑3.4.2‑cp38‑cp38‑win_amd64.whl
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install rasterio‑1.2.10‑cp38‑cp38‑win_amd64.whl
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install Fiona‑1.8.21‑cp38‑cp38‑win_amd64.whl
-# 6. Install pytorch with CUDA support and deepforest:
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install albumentations==1.0.3 deepforest pytorch-lightning==1.5.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-# 7. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
+# 1. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy detect_objects.py script to C:/Users/<username>/AppData/Local/Agisoft/Metashape Pro/scripts/
+# 2. Restart Metashape
 #
 # How to use:
 #

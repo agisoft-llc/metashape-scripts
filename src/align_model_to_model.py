@@ -26,9 +26,8 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-# On windows see: https://www.agisoft.com/forum/index.php?topic=11387.msg54281#msg54281
-# for installation notes
-pip_install("""open3d == 0.8.0.0
+pip_install("""—find-links https://vineg.github.io/python-wheels/wheels.html 
+open3d == 0.16.0
 pyhull == 2015.2.1""");
 
 import open3d as o3d
