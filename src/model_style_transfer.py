@@ -7,13 +7,16 @@
 #
 # Note that you need to:
 # 1. Install CUDA 9.0 and cuDNN for CUDA 9.0
-# 2. In Python bundled with Metashape install these packages: tensorflow-gpu==1.9.0 lucid==0.2.3 numpy==1.15.0 Pillow==5.2.0 matplotlib==2.2.2 ipython==6.5.0 PyOpenGL==3.1.0 jupyter==1.0.0
+# 2. In Python bundled with Metashape install these packages: Pillow==5.2.0 PyOpenGL==3.1.0 absl-py==0.4.1 astor==0.7.1 backcall==0.1.0 cycler==0.10.0 future==0.16.0 gast==0.2.0 grpcio==1.14.2 ipython==6.5.0 jedi==0.12.1 kiwisolver==1.0.1 lucid==0.2.3 markdown==2.6.11 matplotlib==2.2.2 numpy==1.15.0 parso==0.3.1 prompt-toolkit==1.0.15 protobuf==3.6.1 pyparsing==2.2.0 python-dateutil==2.7.3 pytz==2018.5 scikit-learn==0.19.2 scipy==1.1.0 tensorboard==1.9.0 tensorflow-gpu==1.9.0 termcolor==1.1.0 werkzeug==0.14.1 wheel==0.31.1
 #
-# Installation and usage instruction: http://www.agisoft.com/index.php?id=54
+# Note, to work correctly chunk should not be georeferenced. If chunk is georeferenced (has [R] flag), reset transform for it from chunk context menu.
+#
+# Installation and usage instruction: https://agisoft.freshdesk.com/support/solutions/articles/31000158881-style-transfer-for-3d-model
 
 import Metashape
 import pathlib, shutil, math
 from PySide2 import QtGui, QtCore, QtWidgets
+from modules.pip_auto_install import pip_install
 
 
 # Checking compatibility
@@ -247,12 +250,12 @@ class ModelStyleTransferDlg(QtWidgets.QDialog):
 
         self.input_model_path = str(working_dir / "{}.ply".format(self.model_name))
         print("Exporting model to '{}'...".format(self.input_model_path))
-        chunk.exportModel(self.input_model_path, binary=True, texture_format=Metashape.ImageFormatJPEG, texture=True,
-                          normals=False, colors=False, cameras=False, markers=False, format=Metashape.ModelFormatPLY)
+        chunk.exportModel(self.input_model_path, binary=True, texture_format=Metashape.ImageFormatJPEG, save_texture=True,
+                          save_normals=False, save_colors=False, save_cameras=False, save_markers=False, format=Metashape.ModelFormatPLY)
         self.input_model_path = str(working_dir / "{}.obj".format(self.model_name))
         print("Exporting model to '{}'...".format(self.input_model_path))
-        chunk.exportModel(self.input_model_path, binary=False, texture_format=Metashape.ImageFormatJPEG, texture=True,
-                          normals=False, colors=False, cameras=False, markers=False, format=Metashape.ModelFormatOBJ)
+        chunk.exportModel(self.input_model_path, binary=False, texture_format=Metashape.ImageFormatJPEG, save_texture=True,
+                          save_normals=False, save_colors=False, save_cameras=False, save_markers=False, format=Metashape.ModelFormatOBJ)
 
         self.input_texture_path = str(working_dir / "{}.jpg".format(self.model_name))
 
@@ -516,7 +519,7 @@ def model_style_transfer():
     if chunk is None or chunk.model is None:
         raise Exception("No active model!")
 
-    if chunk.model.texture is None or chunk.model.tex_vertices is None or len(chunk.model.tex_vertices) == 0:
+    if chunk.model.textures is None or chunk.model.tex_vertices is None or len(chunk.model.tex_vertices) == 0:
         raise Exception("Model is not textured!")
 
     app = QtWidgets.QApplication.instance()
@@ -525,6 +528,6 @@ def model_style_transfer():
     dlg = ModelStyleTransferDlg(parent)
 
 
-label = "Custom menu/Model style transfer"
+label = "Scripts/Model style transfer"
 Metashape.app.addMenuItem(label, model_style_transfer)
 print("To execute this script press {}".format(label))
