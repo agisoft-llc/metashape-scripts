@@ -27,6 +27,9 @@ def remove_duplicated_photos():
     paths = set()
     photos = list()
     for camera in list(chunk.cameras):
+        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+
         if camera.photo.path in paths:
             photos.append(camera)
         else:

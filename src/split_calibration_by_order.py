@@ -17,6 +17,9 @@ def split_cameras_calibration_group_by_order():
 
     chunk = Metashape.app.document.chunk 
     for camera in chunk.cameras:
+        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+
         sensor = camera.sensor
         new_sensor = chunk.addSensor()
 

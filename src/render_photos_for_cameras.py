@@ -30,6 +30,9 @@ def render_cameras():
         raise Exception("No model!")
 
     for camera in get_cameras(chunk):
+        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+
         render = chunk.model.renderImage(camera.transform, camera.sensor.calibration)
 
         photo_dir = os.path.dirname(camera.photo.path)

@@ -61,7 +61,9 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
     masks_dirs_created = set()
     cameras_by_masks_dir = {}
     for i, c in enumerate(cameras):
-        if (not c.photo): continue
+        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+
         input_image_path = c.photo.path
         image_mask_dir = pathlib.Path(input_image_path).parent / 'masks'
         if image_mask_dir.exists() and str(image_mask_dir) not in masks_dirs_created:
@@ -82,7 +84,9 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
     torch_lock = multiprocessing.Lock()
 
     def process_camera(image_mask_dir, c, camera_index):
-        if (not c.photo): return
+        if not c.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+
         input_image_path = c.photo.path
         print("{}/{} processing: {}".format(camera_index + 1, len(cameras), input_image_path))
         image_mask_name = pathlib.Path(input_image_path).name.split(".")

@@ -127,7 +127,7 @@ def find_correspondence(cams_0, cams_1):
 def transfer_orientations():
     chunk = Metashape.app.document.chunk
 
-    enabled_cameras = list(filter(lambda c: c.enabled, chunk.cameras))
+    enabled_cameras = list(filter(lambda c: ((c.type == Metashape.Camera.Type.Regular) and c.enabled), chunk.cameras))
     master_cameras = list(filter(check_camera_master, enabled_cameras))
 
     cameras_estimated = list(filter(check_camera_transform, master_cameras))
