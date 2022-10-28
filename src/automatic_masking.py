@@ -85,7 +85,7 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
 
     def process_camera(image_mask_dir, c, camera_index):
         if not c.type == Metashape.Camera.Type.Regular: #skip camera track, if any
-            continue
+            return
 
         input_image_path = c.photo.path
         print("{}/{} processing: {}".format(camera_index + 1, len(cameras), input_image_path))
