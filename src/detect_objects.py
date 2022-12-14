@@ -134,7 +134,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
         self.data_augmentation_multiplier = 8  # from 1 to 8, bigger multiplier leads to better neural network training (but slower)
         self.preferred_patch_size = 400  # 400 pixels
         self.preferred_resolution = 0.10  # 10 cm/pix
-        self.detection_score_threshold = 0.98
+        self.detection_score_threshold = None  # can be from 0.0 to 1.0, for example it can be 0.98
 
         self.prefer_original_resolution = True
         self.use_neural_network_pretrained_on_birds = False
@@ -796,6 +796,8 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                             assert (label == "Tree")
                             if xmin >= self.patch_size - border or xmax <= border or ymin >= self.patch_size - border or ymax <= border:
                                 continue
+                            if self.detection_score_threshold is not None and score < self.detection_score_threshold:
+                                continue
                             if white_pixels_fraction > 0.10:
                                 subtile_bbox = subtile[ymin:ymax, xmin:xmax, :]
                                 bbox_white_pixels_fraction = np.sum(np.all(subtile_bbox == 255, axis=-1)) / (subtile_bbox.shape[0] * subtile_bbox.shape[1])
@@ -967,23 +969,23 @@ class DetectObjectsDlg(QtWidgets.QDialog):
         import numpy as np
 
         for row in tile_trees.itertuples():
-            xmin, ymin, xmax, ymax, label, score = int(row.xmin), int(row.ymin), int(row.xmax), int(row.ymax), row.label, row.score
+            xmin, ymin, xmax, ymax, label = int(row.xmin), int(row.ymin), int(row.xmax), int(row.ymax), row.label
             assert (label == "Tree")
 
-            if(score > self.detection_score_threshold):
-                corners = []
-                for x, y in [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]:
-                    x, y = to_world @ np.array([x+0.5, y+0.5, 1]).reshape(3, 1)
-                    p = Metashape.Vector([x, y])
-                    p = Metashape.CoordinateSystem.transform(p, self.chunk.orthomosaic.crs, self.chunk.shapes.crs)
-                    corners.append([p.x, p.y])
+            corners = []
+            for x, y in [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]:
+                x, y = to_world @ np.array([x+0.5, y+0.5, 1]).reshape(3, 1)
+                p = Metashape.Vector([x, y])
+                p = Metashape.CoordinateSystem.transform(p, self.chunk.orthomosaic.crs, self.chunk.shapes.crs)
+                corners.append([p.x, p.y])
 
-                shape = self.chunk.shapes.addShape()
-                shape.group = shapes_group
-                shape.geometry = Metashape.Geometry.Polygon(corners)
+            shape = self.chunk.shapes.addShape()
+            shape.group = shapes_group
+            shape.geometry = Metashape.Geometry.Polygon(corners)
 
     def show_results_dialog(self):
-        message = "Finished in {:.2f} sec:\n".format(self.results_time_total)
+        message = "Finished in {:.2f} sec:\n".format(self.results_time_total)\
+                   + "{} trees detected.".format(self.results_ntrees_detected)
 
         print(message)
         Metashape.app.messageBox(message)
