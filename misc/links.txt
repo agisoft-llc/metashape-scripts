@@ -1,0 +1,4 @@
+https://download.lfd.uci.edu/pythonlibs/archived/GDAL-3.4.3-cp39-cp39-win_amd64.whl
+https://download.lfd.uci.edu/pythonlibs/archived/Fiona-1.8.21-cp39-cp39-win_amd64.whl
+https://download.lfd.uci.edu/pythonlibs/archived/rasterio-1.2.10-cp39-cp39-win_amd64.whl
+https://download.lfd.uci.edu/pythonlibs/archived/pyhull-2015.2.1-cp39-cp39-win_amd64.whl
