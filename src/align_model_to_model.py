@@ -26,7 +26,7 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-pip_install("""--find-links https://vineg.github.io/python-wheels/wheels.html 
+pip_install("""-f https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt
 open3d == 0.16.0
 pyhull == 2015.2.1""");
 
