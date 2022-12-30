@@ -72,14 +72,19 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-pip_install("""-f https://download.pytorch.org/whl/torch_stable.html
--f https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt
+import urllib, tempfile
+temporary_file = tempfile.NamedTemporaryFile(delete=False)
+find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
+urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
+
+pip_install("""-f {find_links_file_path}
+-f https://download.pytorch.org/whl/torch_stable.html
 albumentations==1.0.3
 deepforest==1.2.4
 pytorch-lightning==1.5.10
 torch==1.9.0+cu111
 torchvision==0.10.0+cu111
-torchaudio===0.9.0""")
+torchaudio===0.9.0""".format(find_links_file_path=temporary_file.name.replace("\\", "\\\\")))
 
 def pandas_append(df, row, ignore_index=False):
     import pandas as pd
