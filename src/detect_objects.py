@@ -75,7 +75,7 @@ if found_major_version != compatible_major_version:
 pip_install("""-f https://download.pytorch.org/whl/torch_stable.html
 -f https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt
 albumentations==1.0.3
-deepforest
+deepforest==1.2.4
 pytorch-lightning==1.5.10
 torch==1.9.0+cu111
 torchvision==0.10.0+cu111
