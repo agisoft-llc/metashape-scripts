@@ -8,7 +8,7 @@ view_consistent_direction = False
 result_height_px = 4000
 
 # Checking compatibility
-preferred_major_version = "1.8"
+preferred_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != preferred_major_version:
     print("Unsupported Metashape version: {} != {}. Script may not work properly".format(found_major_version, preferred_major_version))

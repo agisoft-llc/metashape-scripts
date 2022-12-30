@@ -7,7 +7,7 @@ import Metashape
 import os
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -30,6 +30,9 @@ def render_cameras():
         raise Exception("No model!")
 
     for camera in get_cameras(chunk):
+        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+
         render = chunk.model.renderImage(camera.transform, camera.sensor.calibration)
 
         photo_dir = os.path.dirname(camera.photo.path)

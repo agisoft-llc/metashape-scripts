@@ -6,7 +6,7 @@
 import Metashape
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -25,7 +25,9 @@ def read_DJI_relative_altitude():
     chunk = doc.chunk
 
     for camera in chunk.cameras:
-        if not camera.reference.location:
+        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+        if (not camera.reference.location):
             continue
         if ("DJI/RelativeAltitude" in camera.photo.meta.keys()) and camera.reference.location:
             z = float(camera.photo.meta["DJI/RelativeAltitude"])

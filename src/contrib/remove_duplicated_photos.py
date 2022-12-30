@@ -8,7 +8,7 @@ Matjaz Mori, CPA, May 2022
 The script will remove all duplicated photos (photos referenced to the same file) from Metashape project. 
 """
 
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -27,6 +27,9 @@ def remove_duplicated_photos():
     paths = set()
     photos = list()
     for camera in list(chunk.cameras):
+        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+
         if camera.photo.path in paths:
             photos.append(camera)
         else:

@@ -1,6 +1,6 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 #
-# Based on https://github.com/danielgatis/rembg (tested on rembg==2.0.10)
+# Based on https://github.com/danielgatis/rembg (tested on rembg==2.0.24)
 #
 # See also examples of rembg masking:
 # - https://peterfalkingham.com/2021/07/19/rembg-a-phenomenal-ai-based-background-remover/
@@ -8,39 +8,29 @@
 #
 # How to install (Linux):
 #
-# 0. Note that you will need around 5 GB of free space in metashape-pro installation location
-# 1. cd .../metashape-pro
-#    LD_LIBRARY_PATH=`pwd`/python/lib/ python/bin/python3.8 -m pip install rembg==2.0.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-# 2. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
+# 1. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy automatic_masking.py script to /home/<username>/.local/share/Agisoft/Metashape Pro/scripts/
+# 2. Restart Metashape
 #
 # How to install (Windows):
 #
-# 0. Note that you will need around 14 GB of free space on drive C:
-# 1. Launch cmd.exe with the administrator privileges
-# 2. "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install --use-feature=2020-resolver rembg==2.0.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-# 3. To not encounter error "Attempted to compile AOT function without the compiler used by numpy.distutils present. Cannot find suitable msvc.":
-# 3.1 Open https://visualstudio.microsoft.com/visual-cpp-build-tools/
-# 3.2 Download and launch 'Build Tools'
-# 3.3 Tick "Desktop development with C++" and after that in "Installation details" tick "MSVC v140 - VS 2015 C++ build tools" - see screenshot on forum https://www.agisoft.com/forum/index.php?topic=11387.msg54298#msg54298
-# 3.4 Reboot the computer
-# 4. To not encounter error "...\aot.cp38-win_amd64.lib" failed with exit status 1104":
-# 4.1 Launch cmd.exe with the administrator privileges
-# 4.2 "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -c "import rembg; import rembg.bg"
-# 5. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
+# 1. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy automatic_masking.py script to C:/Users/<username>/AppData/Local/Agisoft/Metashape Pro/scripts/
+# 2. Restart Metashape
 
 import pathlib
 import Metashape
 import multiprocessing
 import concurrent.futures
+from modules.pip_auto_install import pip_install
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
+pip_install('''rembg==2.0.24''')
 
 def generate_automatic_background_masks_with_rembg(chunk=None):
     try:
@@ -71,6 +61,9 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
     masks_dirs_created = set()
     cameras_by_masks_dir = {}
     for i, c in enumerate(cameras):
+        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+
         input_image_path = c.photo.path
         image_mask_dir = pathlib.Path(input_image_path).parent / 'masks'
         if image_mask_dir.exists() and str(image_mask_dir) not in masks_dirs_created:
@@ -91,6 +84,9 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
     torch_lock = multiprocessing.Lock()
 
     def process_camera(image_mask_dir, c, camera_index):
+        if not c.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            return
+
         input_image_path = c.photo.path
         print("{}/{} processing: {}".format(camera_index + 1, len(cameras), input_image_path))
         image_mask_name = pathlib.Path(input_image_path).name.split(".")
@@ -164,5 +160,6 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
 
 
 label = "Scripts/Automatic background masking"
+
 Metashape.app.addMenuItem(label, generate_automatic_background_masks_with_rembg)
 print("To execute this script press {}".format(label))

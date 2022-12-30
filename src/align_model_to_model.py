@@ -18,25 +18,21 @@ from PySide2 import QtGui, QtCore, QtWidgets
 import os, copy, time, itertools, tempfile
 from pathlib import Path
 
-try:
-    # Requirements:
-    # open3d >= 0.8.0.0  (for points cloud global registration and ICP-based refinement)
-    # pyhull >= 2015.2.1 (for automatic scale ratio recognition between two models of the same closed object)
-    # On windows see also: https://www.agisoft.com/forum/index.php?topic=11387.msg54281#msg54281
-    import open3d as o3d
-    from pyhull.convex_hull import ConvexHull
-    import numpy as np
-except ImportError:
-    print("Please ensure that you installed open3d and pyhull via 'pip install open3d pyhull' - see https://agisoft.freshdesk.com/support/solutions/articles/31000136860-how-to-install-external-python-module-to-metashape-professional-package")
-    print("On windows please see also: https://www.agisoft.com/forum/index.php?topic=11387.msg54281#msg54281")
-    raise
+from modules.pip_auto_install import pip_install
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
+pip_install("""-f https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt
+open3d == 0.16.0
+pyhull == 2015.2.1""");
+
+import open3d as o3d
+from pyhull.convex_hull import ConvexHull
+import numpy as np
 
 try:
     o3d_registration = o3d.registration
@@ -363,13 +359,13 @@ class AlignModelDlg(QtWidgets.QDialog):
             label += " ({} faces)".format(len(model.faces))
             is_model = True
             self.objects.append((model.key, is_model, label))
-        for dense_cloud in self.chunk.dense_clouds:
-            label = dense_cloud.label
+        for point_cloud in self.chunk.point_clouds:
+            label = point_cloud.label
             if label == '':
                 label = "Dense Cloud"
-            label += " ({} points)".format(dense_cloud.point_count)
+            label += " ({} points)".format(point_cloud.point_count)
             is_model = False
-            self.objects.append((dense_cloud.key, is_model, label))
+            self.objects.append((point_cloud.key, is_model, label))
 
         self.fromObject = QtWidgets.QComboBox()
         self.toObject = QtWidgets.QComboBox()
@@ -443,13 +439,13 @@ class AlignModelDlg(QtWidgets.QDialog):
         T = Tlocal * world_transform
         return T, Tlocal
 
-    def get_dense_cloud_T(self, dense_cloud):
-        if dense_cloud.crs is None:
+    def get_point_cloud_T(self, point_cloud):
+        if point_cloud.crs is None:
             world_crs = self.chunk.crs
-            world_transform = self.chunk.transform.matrix * dense_cloud.transform
+            world_transform = self.chunk.transform.matrix * point_cloud.transform
         else:
-            world_crs = dense_cloud.crs
-            world_transform = dense_cloud.transform
+            world_crs = point_cloud.crs
+            world_transform = point_cloud.transform
 
         pt0 = world_transform.translation()
         pt0 = world_crs.project(pt0)
@@ -488,11 +484,11 @@ class AlignModelDlg(QtWidgets.QDialog):
                                       save_comment=False,
                                       format=Metashape.ModelFormatPLY)
                 else:
-                    self.chunk.dense_cloud = None
-                    for dense_cloud in self.chunk.dense_clouds:
-                        if dense_cloud.key == key:
-                            self.chunk.dense_cloud = dense_cloud
-                    assert(self.chunk.dense_cloud is not None)
+                    self.chunk.point_cloud = None
+                    for point_cloud in self.chunk.point_clouds:
+                        if point_cloud.key == key:
+                            self.chunk.point_cloud = point_cloud
+                    assert(self.chunk.point_cloud is not None)
                     self.chunk.exportPoints(path=filename,
                                        source_data=Metashape.DenseCloudData, binary=True,
                                        save_normals=False, save_colors=False, save_classes=False, save_confidence=False,
@@ -524,9 +520,9 @@ class AlignModelDlg(QtWidgets.QDialog):
             model1 = self.chunk.model
             T1, Tlocal1 = self.get_model_T(model1)
         else:
-            assert(self.chunk.dense_cloud.key == key1)
-            dense_cloud1 = self.chunk.dense_cloud
-            T1, Tlocal1 = self.get_dense_cloud_T(dense_cloud1)
+            assert(self.chunk.point_cloud.key == key1)
+            point_cloud1 = self.chunk.point_cloud
+            T1, Tlocal1 = self.get_point_cloud_T(point_cloud1)
 
         if isModel2:
             model2 = None
@@ -536,12 +532,12 @@ class AlignModelDlg(QtWidgets.QDialog):
             assert model2 is not None
             _, Tlocal2 = self.get_model_T(model2)
         else:
-            dense_cloud2 = None
-            for dense_cloud in self.chunk.dense_clouds:
-                if dense_cloud.key == key2:
-                    dense_cloud2 = dense_cloud
-            assert dense_cloud2 is not None
-            _, Tlocal2 = self.get_dense_cloud_T(dense_cloud2)
+            point_cloud2 = None
+            for point_cloud in self.chunk.point_clouds:
+                if point_cloud.key == key2:
+                    point_cloud2 = point_cloud
+            assert point_cloud2 is not None
+            _, Tlocal2 = self.get_point_cloud_T(point_cloud2)
 
         shift21 = Tlocal2 * Tlocal1.inv()
 
@@ -550,8 +546,8 @@ class AlignModelDlg(QtWidgets.QDialog):
             self.chunk.model.transform(T1.inv() * shift21.inv() * M12 * T1)
             self.chunk.model = None
         else:
-            assert(self.chunk.dense_cloud.key == key1)
-            self.chunk.dense_cloud.transform = self.chunk.dense_cloud.transform * T1.inv() * shift21.inv() * M12 * T1
+            assert(self.chunk.point_cloud.key == key1)
+            self.chunk.point_cloud.transform = self.chunk.point_cloud.transform * T1.inv() * shift21.inv() * M12 * T1
 
         print("Script finished!")
         self.reject()

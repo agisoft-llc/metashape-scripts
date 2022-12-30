@@ -2,7 +2,7 @@ import Metashape
 import os, sys, time
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -71,11 +71,11 @@ task.ghosting_filter = True
 tasks.append(task)
 
 if has_reference:
-    task = Metashape.Tasks.BuildDenseCloud()
+    task = Metashape.Tasks.BuildPointCloud()
     tasks.append(task)
 
     task = Metashape.Tasks.BuildDem()
-    task.source_data = Metashape.DenseCloudData
+    task.source_data = Metashape.PointCloudData
     tasks.append(task)
 
     task = Metashape.Tasks.BuildOrthomosaic()
@@ -90,9 +90,9 @@ task = Metashape.Tasks.ExportModel()
 task.path = output_folder + '/model.obj'
 tasks.append(task)
 
-task = Metashape.Tasks.ExportPoints()
-task.path = output_folder + '/dense_cloud.las'
-task.source_data = Metashape.DenseCloudData
+task = Metashape.Tasks.ExportPointCloud()
+task.path = output_folder + '/point_cloud.las'
+task.source_data = Metashape.PointCloudData
 tasks.append(task)
 
 if has_reference:
