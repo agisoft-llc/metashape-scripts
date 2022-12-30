@@ -72,7 +72,7 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-import urllib, tempfile
+import urllib.request, tempfile
 temporary_file = tempfile.NamedTemporaryFile(delete=False)
 find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
 urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
