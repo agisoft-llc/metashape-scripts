@@ -127,8 +127,8 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
         mask = np.array(mask)
 
         mask = (mask > 10)
-        mask = scipy.ndimage.morphology.binary_dilation(mask, iterations=3)
-        mask = scipy.ndimage.morphology.binary_erosion(mask, iterations=3)
+        mask = scipy.ndimage.binary_dilation(mask, iterations=3)
+        mask = scipy.ndimage.binary_erosion(mask, iterations=3)
         mask = mask.astype(np.uint8) * 255
         mask = np.dstack([mask, mask, mask])
 
