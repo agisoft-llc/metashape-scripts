@@ -30,7 +30,7 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-pip_install('''rembg==2.0.24''')
+pip_install('''rembg==2.0.*''')
 
 def generate_automatic_background_masks_with_rembg(chunk=None):
     try:
@@ -61,7 +61,7 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
     masks_dirs_created = set()
     cameras_by_masks_dir = {}
     for i, c in enumerate(cameras):
-        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+        if not c.type == Metashape.Camera.Type.Regular: #skip camera track, if any
             continue
 
         input_image_path = c.photo.path
