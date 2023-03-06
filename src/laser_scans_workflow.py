@@ -6,8 +6,8 @@ import Metashape
 from packaging import version
 from PySide2.QtWidgets import QMessageBox
 
-compatible_version = "2.0.2"
 # Checking compatibility
+compatible_version = "2.0.2"
 if version.parse(Metashape.app.version) < version.parse(compatible_version):
     raise Exception("Incompatible Metashape version: {} < {}".format(Metashape.app.version, compatible_version))
 
