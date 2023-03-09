@@ -1,4 +1,4 @@
-# Script adds user defined altitude to Source values in the Reference pane.
+# Script shows general workflow for processing laser scans with imagery.
 #
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
