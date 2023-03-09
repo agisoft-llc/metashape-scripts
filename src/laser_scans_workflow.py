@@ -15,6 +15,9 @@ def process_laser_scans_with_images():
     preserve_laser_scans_relative_position = False
     preserve_laser_scans_absolute_position = False
 
+    app = QtWidgets.QApplication.instance()
+    parent = app.activeWindow()
+
     doc = Metashape.app.document
     if not doc.path:
         path = Metashape.app.getSaveFileName("Save Project As:", filter = "*.psx");
@@ -31,7 +34,7 @@ def process_laser_scans_with_images():
         preserve_laser_scans_relative_position = True
     elif len(laser_scan_paths) > 1:
         ans = QMessageBox.question(
-            None, '',
+            parent, '',
             "Are laser scans prealigned to each other?",
             QMessageBox.Yes | QMessageBox.No
         )
@@ -40,7 +43,7 @@ def process_laser_scans_with_images():
 
     if preserve_laser_scans_relative_position or len(laser_scan_paths) == 1:
         ans = QMessageBox.question(
-            None, '',
+            parent, '',
             "Do you want to preserve laser scans absolute position?",
             QMessageBox.Yes | QMessageBox.No
         )
@@ -51,7 +54,7 @@ def process_laser_scans_with_images():
         chunk.importPointCloud(laser_scan_path, is_laser_scan=True)
         doc.save()
 
-    asset_group = chunk.addAssetGroup(Metashape.AssetGroup.Type.PointCloud)
+    asset_group = chunk.addPointCloudGroup()
     doc.save()
 
     initial_asset_group_transform = None
