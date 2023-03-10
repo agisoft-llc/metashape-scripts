@@ -1,4 +1,4 @@
-# Script shows general workflow for processing laser scans with imagery.
+# Script adds user defined altitude to Source values in the Reference pane.
 #
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
@@ -7,9 +7,16 @@ from packaging import version
 from PySide2.QtWidgets import QMessageBox
 
 # Checking compatibility
-compatible_version = "2.0.2"
-if version.parse(Metashape.app.version) < version.parse(compatible_version):
-    raise Exception("Incompatible Metashape version: {} < {}".format(Metashape.app.version, compatible_version))
+compatible_major_version = "2.0"
+compatible_micro_version = 2;
+version_split = Metashape.app.version.split('.')
+found_major_version = ".".join(version_split[:2])
+found_micro_version = int(version_split[2])
+
+if found_major_version != compatible_major_version:
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
+if found_micro_version < compatible_micro_version:
+    raise Exception("Incompatible Metashape version: {}.{} < {}.{}".format(found_major_version, found_micro_version, compatible_major_version, compatible_micro_version))
 
 def process_laser_scans_with_images():
     preserve_laser_scans_relative_position = False
@@ -53,6 +60,7 @@ def process_laser_scans_with_images():
     for laser_scan_path in laser_scan_paths:
         chunk.importPointCloud(laser_scan_path, is_laser_scan=True)
         doc.save()
+    laser_scan_cameras = chunk.cameras
 
     asset_group = chunk.addPointCloudGroup()
     doc.save()
@@ -67,7 +75,6 @@ def process_laser_scans_with_images():
     if preserve_laser_scans_relative_position:
         chunk.setGroupFixed([asset_group], True)
 
-        initial_asset_group_transform = asset_group.transform
         initial_asset_group_crs = asset_group.crs
 
         # unlock transform
@@ -78,17 +85,18 @@ def process_laser_scans_with_images():
             point_cloud.crs = None
 
     chunk.addPhotos(photo_paths)
+    if preserve_laser_scans_absolute_position:
+        chunk.crs = initial_asset_group_crs
+        for cam in chunk.cameras:
+            if cam not in laser_scan_cameras:
+                cam.reference.enabled = False
     doc.save()
 
     chunk.matchPhotos(keypoint_limit = 40000, tiepoint_limit = 10000, generic_preselection = False, reference_preselection = False)
     doc.save()
 
-    chunk.alignCameras(reset_alignment = True)
+    chunk.alignCameras(reset_alignment = not preserve_laser_scans_absolute_position)
     doc.save()
-
-    if preserve_laser_scans_absolute_position:
-        chunk.crs = initial_asset_group_crs
-        chunk.transform.matrix = initial_asset_group_transform * asset_group.transform.inv()
 
     chunk.buildDepthMaps(downscale = 2, filter_mode = Metashape.MildFiltering)
     doc.save()
@@ -99,3 +107,4 @@ def process_laser_scans_with_images():
 label = "Scripts/Process Laser Scans"
 Metashape.app.addMenuItem(label, process_laser_scans_with_images)
 print("To execute this script press {}".format(label))
+
