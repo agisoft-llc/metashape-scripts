@@ -48,7 +48,7 @@ def process_laser_scans_with_images():
         if QMessageBox.Yes == ans:
             preserve_laser_scans_relative_position = True
 
-    if preserve_laser_scans_relative_position or len(laser_scan_paths) == 1:
+    if preserve_laser_scans_relative_position:
         ans = QMessageBox.question(
             parent, '',
             "Do you want to preserve laser scans absolute position?",
