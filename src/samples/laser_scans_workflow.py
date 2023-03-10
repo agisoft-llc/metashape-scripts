@@ -63,18 +63,13 @@ def process_laser_scans_with_images():
     laser_scan_cameras = chunk.cameras
 
     asset_group = chunk.addPointCloudGroup()
-    doc.save()
-
-    initial_asset_group_transform = None
     initial_asset_group_crs = None
-    
     for point_cloud in chunk.point_clouds:
         point_cloud.asset_group = asset_group
     doc.save()
 
     if preserve_laser_scans_relative_position:
         chunk.setGroupFixed([asset_group], True)
-
         initial_asset_group_crs = asset_group.crs
 
         # unlock transform
