@@ -12,29 +12,15 @@
 #
 # How to install (Linux):
 #
-# 1. cd .../metashape-pro
-#    LD_LIBRARY_PATH=`pwd`/python/lib/ python/bin/python3.8 -m pip install albumentations==1.0.3 deepforest pytorch-lightning==1.5.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-# 2. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
+# 1. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy detect_objects.py script to /home/<username>/.local/share/Agisoft/Metashape Pro/scripts/
+# 2. Restart Metashape.
 #
 # How to install (Windows):
 #
-# 1. Download latest gdal, rasterio and fiona packages (for Python 3.8 amd64, i.e. download files ending with ...cp38‑cp38‑win_amd64.whl)
-#    gdal     - https://www.lfd.uci.edu/~gohlke/pythonlibs/#gdal
-#    rasterio - https://www.lfd.uci.edu/~gohlke/pythonlibs/#rasterio
-#    fiona    - https://www.lfd.uci.edu/~gohlke/pythonlibs/#fiona
-# 2. Now you need to install these downloaded python packages wheel:
-# 3. Launch cmd.exe with the administrator privileges
-# 4. Change directory to Downloads directory (where three downloaded files are located):
-#   cd %USERPROFILE%/Downloads
-# 5. Install them one by one:
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install GDAL‑3.4.2‑cp38‑cp38‑win_amd64.whl
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install rasterio‑1.2.10‑cp38‑cp38‑win_amd64.whl
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install Fiona‑1.8.21‑cp38‑cp38‑win_amd64.whl
-# 6. Install pytorch with CUDA support and deepforest:
-#    "%programfiles%\Agisoft\Metashape Pro\python\python.exe" -m pip install albumentations==1.0.3 deepforest pytorch-lightning==1.5.10 torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-# 7. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
+# 1. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
 #    copy detect_objects.py script to C:/Users/<username>/AppData/Local/Agisoft/Metashape Pro/scripts/
+# 2. Restart Metashape
 #
 # How to use:
 #
@@ -77,14 +63,28 @@
 import Metashape
 import pathlib, shutil, os, time
 from PySide2 import QtGui, QtCore, QtWidgets
+from modules.pip_auto_install import pip_install
 
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
+import urllib.request, tempfile
+temporary_file = tempfile.NamedTemporaryFile(delete=False)
+find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
+urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
+
+pip_install("""-f {find_links_file_path}
+-f https://download.pytorch.org/whl/torch_stable.html
+albumentations==1.0.3
+deepforest==1.2.4
+pytorch-lightning==1.5.10
+torch==1.9.0+cu111
+torchvision==0.10.0+cu111
+torchaudio===0.9.0""".format(find_links_file_path=temporary_file.name.replace("\\", "\\\\")))
 
 def pandas_append(df, row, ignore_index=False):
     import pandas as pd
@@ -134,6 +134,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
         self.data_augmentation_multiplier = 8  # from 1 to 8, bigger multiplier leads to better neural network training (but slower)
         self.preferred_patch_size = 400  # 400 pixels
         self.preferred_resolution = 0.10  # 10 cm/pix
+        self.detection_score_threshold = None  # can be from 0.0 to 1.0, for example it can be 0.98
 
         self.prefer_original_resolution = True
         self.use_neural_network_pretrained_on_birds = False
@@ -794,6 +795,8 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                             xmin, ymin, xmax, ymax, label, score = int(row.xmin), int(row.ymin), int(row.xmax), int(row.ymax), row.label, row.score
                             assert (label == "Tree")
                             if xmin >= self.patch_size - border or xmax <= border or ymin >= self.patch_size - border or ymax <= border:
+                                continue
+                            if self.detection_score_threshold is not None and score < self.detection_score_threshold:
                                 continue
                             if white_pixels_fraction > 0.10:
                                 subtile_bbox = subtile[ymin:ymax, xmin:xmax, :]

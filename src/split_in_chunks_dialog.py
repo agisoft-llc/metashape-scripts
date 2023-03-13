@@ -5,7 +5,7 @@ import math
 from PySide2 import QtGui, QtCore, QtWidgets
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -24,7 +24,7 @@ MESH_FACE_COUNT = {"High face count": Metashape.FaceCount.HighFaceCount,
                    "Low face count": Metashape.FaceCount.LowFaceCount,
                    "Custom face count": Metashape.FaceCount.CustomFaceCount}
 
-DENSE = {"Ultra":  1,
+POINTS = {"Ultra":  1,
          "High":   2,
          "Medium": 4,
          "Low":    8,
@@ -75,12 +75,12 @@ class SplitDlg(QtWidgets.QDialog):
         for element in MESH.keys():
             self.meshBox.addItem(element)
 
-        self.chkDense = QtWidgets.QCheckBox("Build Dense Cloud")
-        self.chkDense.setWhatsThis("Builds dense cloud for each cell in grid")
+        self.chkPoints = QtWidgets.QCheckBox("Build Point Cloud")
+        self.chkPoints.setWhatsThis("Builds point cloud for each cell in grid")
 
-        self.denseBox = QtWidgets.QComboBox()
-        for element in DENSE.keys():
-            self.denseBox.addItem(element)
+        self.pointsBox = QtWidgets.QComboBox()
+        for element in POINTS.keys():
+            self.pointsBox.addItem(element)
 
         self.faceCountBox = QtWidgets.QComboBox()
         for element in MESH_FACE_COUNT.keys():
@@ -133,13 +133,13 @@ class SplitDlg(QtWidgets.QDialog):
         layout.addWidget(self.spinX, 1, 0)
         layout.addWidget(self.spinY, 1, 1, QtCore.Qt.AlignRight)
 
-        layout.addWidget(self.chkDense, 0, 2)
+        layout.addWidget(self.chkPoints, 0, 2)
         layout.addWidget(self.chkMesh, 0, 3)
         layout.addWidget(self.chkMerge, 0, 4)
 
         layout.addWidget(self.faceCountBox, 1, 4, QtCore.Qt.AlignTop)
         layout.addWidget(self.meshBox, 1, 3, QtCore.Qt.AlignTop)
-        layout.addWidget(self.denseBox, 1, 2, QtCore.Qt.AlignTop)
+        layout.addWidget(self.pointsBox, 1, 2, QtCore.Qt.AlignTop)
 
         layout.addWidget(self.edtFaceCustomCount, 2, 4, QtCore.Qt.AlignTop)
 
@@ -204,11 +204,11 @@ class SplitDlg(QtWidgets.QDialog):
         print("Script started...")
 
         buildMesh = self.chkMesh.isChecked()
-        buildDense = self.chkDense.isChecked()
+        buildPoints = self.chkPoints.isChecked()
         mergeBack = self.chkMerge.isChecked()
         autosave = self.chkSave.isChecked()
 
-        quality = DENSE[self.denseBox.currentText()]
+        quality = POINTS[self.pointsBox.currentText()]
         mesh_mode = MESH[self.meshBox.currentText()]
         face_count = MESH_FACE_COUNT[self.faceCountBox.currentText()]
         face_count_custom = self.edtFaceCustomCount.text()
@@ -246,8 +246,8 @@ class SplitDlg(QtWidgets.QDialog):
 
         for j in range(1, partsY + 1):  # creating new chunks and adjusting bounding box
             for i in range(1, partsX + 1):
-                if not buildDense:
-                    new_chunk = chunk.copy(items=[Metashape.DataSource.DenseCloudData, Metashape.DataSource.DepthMapsData])
+                if not buildPoints:
+                    new_chunk = chunk.copy(items=[Metashape.DataSource.PointCloudData, Metashape.DataSource.DepthMapsData])
                 else:
                     new_chunk = chunk.copy(items=[])
                 new_chunk.label = "Chunk " + str(i) + "_" + str(j)
@@ -277,7 +277,7 @@ class SplitDlg(QtWidgets.QDialog):
                 if autosave:
                     doc.save()
 
-                if buildDense:
+                if buildPoints:
                     if new_chunk.depth_maps:
                         reuse_depth = True
                         if new_chunk.depth_maps.meta['depth/depth_downscale']:
@@ -292,13 +292,13 @@ class SplitDlg(QtWidgets.QDialog):
                             task.subdivide_task = True
                             task.apply(new_chunk)
 
-                            task = Metashape.Tasks.BuildDenseCloud()
+                            task = Metashape.Tasks.BuildPointCloud()
                             task.max_neighbors = 100
                             task.subdivide_task = True
                             task.point_colors = True
                             task.apply(new_chunk)
                         except RuntimeError:
-                            print("Can't build dense cloud for " + chunk.label)
+                            print("Can't build point cloud for " + chunk.label)
 
                     else:
                         reuse_depth = False
@@ -310,13 +310,13 @@ class SplitDlg(QtWidgets.QDialog):
                             task.subdivide_task = True
                             task.apply(new_chunk)
 
-                            task = Metashape.Tasks.BuildDenseCloud()
+                            task = Metashape.Tasks.BuildPointCloud()
                             task.max_neighbors = 100
                             task.subdivide_task = True
                             task.point_colors = True
                             task.apply(new_chunk)
                         except RuntimeError:
-                            print("Can't build dense cloud for " + chunk.label)
+                            print("Can't build point cloud for " + chunk.label)
 
                     if autosave:
                         doc.save()
@@ -342,10 +342,10 @@ class SplitDlg(QtWidgets.QDialog):
                                                  face_count_custom=face_count_custom)
                         except RuntimeError:
                             print("Can't build mesh for " + chunk.label)
-                    elif new_chunk.dense_cloud:
+                    elif new_chunk.point_cloud:
                         try:
                             new_chunk.buildModel(surface_type=mesh_mode,
-                                                 source_data=Metashape.DataSource.DenseCloudData,
+                                                 source_data=Metashape.DataSource.PointCloudData,
                                                  interpolation=Metashape.Interpolation.EnabledInterpolation,
                                                  face_count=face_count,
                                                  face_count_custom=face_count_custom)
@@ -363,9 +363,9 @@ class SplitDlg(QtWidgets.QDialog):
                     if autosave:
                         doc.save()
 
-                if not buildDense:
-                    if new_chunk.dense_cloud:
-                        new_chunk.dense_cloud.clear()
+                if not buildPoints:
+                    if new_chunk.point_cloud:
+                        new_chunk.point_cloud.clear()
                 if new_chunk.depth_maps:
                     new_chunk.depth_maps.clear()
                 # new_chunk = None
@@ -375,7 +375,7 @@ class SplitDlg(QtWidgets.QDialog):
                 chunk.remove(chunk.cameras)
             original_chunk.model = None  # hiding the mesh of the original chunk, just for case
             doc.mergeChunks(chunks = [original_chunk.key] + [chunk.key for chunk in temporary_chunks],
-                            merge_dense_clouds=True, merge_models=True, merge_markers=True)  # merging all smaller chunks into single one
+                            merge_point_clouds=True, merge_models=True, merge_markers=True)  # merging all smaller chunks into single one
             merged_chunk = doc.chunks[-1]
             merged_chunk.region = original_region
 

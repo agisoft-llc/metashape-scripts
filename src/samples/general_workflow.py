@@ -2,7 +2,7 @@ import Metashape
 import os, sys, time
 
 # Checking compatibility
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -50,10 +50,10 @@ doc.save()
 has_transform = chunk.transform.scale and chunk.transform.rotation and chunk.transform.translation
 
 if has_transform:
-    chunk.buildDenseCloud()
+    chunk.buildPointCloud()
     doc.save()
 
-    chunk.buildDem(source_data=Metashape.DenseCloudData)
+    chunk.buildDem(source_data=Metashape.PointCloudData)
     doc.save()
 
     chunk.buildOrthomosaic(surface_data=Metashape.ElevationData)
@@ -65,8 +65,8 @@ chunk.exportReport(output_folder + '/report.pdf')
 if chunk.model:
     chunk.exportModel(output_folder + '/model.obj')
 
-if chunk.dense_cloud:
-    chunk.exportPoints(output_folder + '/dense_cloud.las', source_data = Metashape.DenseCloudData)
+if chunk.point_cloud:
+    chunk.exportPointCloud(output_folder + '/point_cloud.las', source_data = Metashape.PointCloudData)
 
 if chunk.elevation:
     chunk.exportRaster(output_folder + '/dem.tif', source_data = Metashape.ElevationData)

@@ -15,7 +15,7 @@ When using, it is advisable to monitor the Console (View -> Console).
 
 """
 
-compatible_major_version = "1.8"
+compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -37,6 +37,9 @@ def remove_disabled_photos():
     print (message)
 
     for camera in chunk.cameras:
+        if not camera.type == Metashape.Camera.Type.Regular: #skip camera track, if any
+            continue
+
         if camera.enabled is True:
             counter_not_moved = counter_not_moved + 1
             continue # skipping enabled cameras
