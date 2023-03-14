@@ -7,7 +7,7 @@ import os, sys
 
 # Checking compatibility
 compatible_major_version = "2.0"
-compatible_micro_version = 2;
+compatible_micro_version = 2
 version_split = Metashape.app.version.split('.')
 found_major_version = ".".join(version_split[:2])
 found_micro_version = int(version_split[2])
