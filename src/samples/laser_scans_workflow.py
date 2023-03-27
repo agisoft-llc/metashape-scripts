@@ -45,6 +45,7 @@ doc = Metashape.Document()
 doc.save(output_folder + '/project.psx')
 
 chunk = doc.addChunk()
+doc.save()
 
 for laser_scan_path in laser_scans:
     chunk.importPointCloud(laser_scan_path, is_laser_scan=True)
