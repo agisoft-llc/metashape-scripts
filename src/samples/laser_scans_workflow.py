@@ -1,6 +1,18 @@
+# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
+#
 # Script shows general workflow for processing laser scans with imagery.
 #
-# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
+# Script takes 3 folder parameters: folder with laser scans, folder with images and folder to save output, as well as
+# 2 optional parameters:
+#     --fix-relative to preserve laser scans relative position during alignment
+#     --fix-absolute to preserve laser scans absolute position
+#
+# these optional parameters are useful, if laser scans are prealigned in 3-rd party software.
+#
+# Example usage:
+#     ./metashape.sh -r /path/to/laser_scans_workflow.py --fix-relative "/path/to/laser_scans_folder" "/path/to/photos_folder" "/path/to/output_folder"
+#
+# Or using Tools->Run Script... with the same optional parameters and folders.
 
 import Metashape
 import os, sys
@@ -26,10 +38,10 @@ flags   = list(filter(lambda arg : arg[0] == "-", sys.argv[1:]))
 flags_valid = all(map(lambda arg : arg in valid_flags, flags))
 
 if len(folders) != 3 or not flags_valid:
-    print("Usage: general_workflow.py [--fix-relative] [--fix-absolute] <laser_scans_folder> <images_folder> <output_folder>")
+    print("Usage: laser_scans_workflow.py [--fix-relative] [--fix-absolute] <laser_scans_folder> <images_folder> <output_folder>")
     print("  --fix-relative        preserve laser scans relative position")
     print("  --fix-absolute        preserve laser scans absolute position")
-    sys.exit(1)
+    raise Exception("Invalid script arguments")
 
 laser_scans_folder = folders[0]
 images_folder = folders[1]
@@ -77,7 +89,7 @@ if preserve_laser_scans_absolute_position:
             cam.reference.enabled = False
 doc.save()
 
-chunk.matchPhotos(keypoint_limit = 40000, tiepoint_limit = 10000, generic_preselection = False, reference_preselection = False)
+chunk.matchPhotos(downscale = 1, keypoint_limit = 40000, tiepoint_limit = 10000, generic_preselection = False, reference_preselection = False)
 doc.save()
 
 chunk.alignCameras(reset_alignment = not preserve_laser_scans_absolute_position)
