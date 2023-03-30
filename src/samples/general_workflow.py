@@ -12,7 +12,7 @@ def find_files(folder, types):
 
 if len(sys.argv) < 3:
     print("Usage: general_workflow.py <image_folder> <output_folder>")
-    sys.exit(1)
+    raise Exception("Invalid script arguments")
 
 image_folder = sys.argv[1]
 output_folder = sys.argv[2]
