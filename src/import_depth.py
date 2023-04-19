@@ -3,7 +3,7 @@
 # How to use:
 # 1. Select images containing depth information. Image should contain depth in absolute units
 # representing z value in camera coordinate system.
-# 2. Select corresponding color images. Color images should have the same aspect ratio as depth images
+# 2. Select corresponding color images. Color images should have the same aspect ratio as depth images and the same file names (may have different extension)
 # 3. After import is done, check depth maps are correct by toggling "Show Depth Maps" icon in the tool bar in photo view
 #
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
