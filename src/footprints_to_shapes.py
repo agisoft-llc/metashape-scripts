@@ -52,7 +52,7 @@ def create_footprints():
             ray_target = camera.unproject(Metashape.Vector([x, y, 1]))
             corners.append(surface.pickPoint(ray_origin, ray_target))
             if not corners[-1]:
-                corners[-1] = chunk.point_cloud.pickPoint(ray_origin, ray_target)
+                corners[-1] = chunk.tie_points.pickPoint(ray_origin, ray_target)
             if not corners[-1]:
                 break
             corners[-1] = chunk.crs.project(T.mulp(corners[-1]))
