@@ -39,7 +39,7 @@ def create_footprints():
     elif chunk.point_cloud:
         surface = chunk.point_cloud
     else:
-        surface = chunk.point_cloud
+        surface = chunk.tie_points
 
     def process_camera(chunk, camera):
         if camera.type != Metashape.Camera.Type.Regular or not camera.transform:
