@@ -1,4 +1,4 @@
-# Saves estimated values from the Reference pane to file
+# Saves estimated values for camera centers to file.
 #
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
