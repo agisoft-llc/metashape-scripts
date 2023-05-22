@@ -1,4 +1,4 @@
-# Saves estimated values for camera centers to file.
+# Saves estimated values from the Reference pane to file (for GPS/INS sensor).
 #
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
