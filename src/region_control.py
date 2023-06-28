@@ -158,7 +158,7 @@ class ChunkRegionControl(QDialog):
 
         self.setLayout(self.vbox)
 
-        self.exec()
+        self.show()
 
     def getRegionPosition(self):
         self.pos_x.setText(str(Metashape.app.document.chunk.region.center.x))
