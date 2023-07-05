@@ -494,11 +494,11 @@ class AlignModelDlg(QtWidgets.QDialog):
                         if point_cloud.key == key:
                             self.chunk.point_cloud = point_cloud
                     assert(self.chunk.point_cloud is not None)
-                    self.chunk.exportPoints(path=filename,
-                                       source_data=Metashape.DenseCloudData, binary=True,
-                                       save_normals=False, save_colors=False, save_classes=False, save_confidence=False,
+                    self.chunk.exportPointCloud(path=filename,
+                                       source_data=Metashape.PointCloudData, binary=True,
+                                       save_point_normal=False, save_point_color=False, save_point_classification=False, save_point_confidence=False,
                                        save_comment=False,
-                                       format=Metashape.PointsFormatPLY)
+                                       format=Metashape.PointCloudFormatPLY)
 
             v1 = read_ply(tmp1.name)
             v2 = read_ply(tmp2.name)
