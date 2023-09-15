@@ -3,39 +3,32 @@ import sys
 
 """
 Metashape Dense Cloud Filter by Confidence (v 0.1)
-for Metashape version 1.8
 Jules Fleury, SIGéo/CEREGE/AMU
 Usage:
 Tools -> Run script
 In the row "Arguments" enter the maximum confidence level to cut
 ex: 3
-The script will then select and remove all points in the 
-confidence level [0,3]
-or leave the "Arguments" line blank, in which case the default value ​​will be used,
+The script will then select and remove all points in the confidence level [0,3]
+or leave the "Arguments" line blank, in which case the default value will be used.
 """
 
-N=0 #counter for chunks
-doc = Metashape.app.document
-
 def_maxconf = 3
-paramNo = len(sys.argv)
-maxconf=int(sys.argv[1])
 
-if paramNo == 2 and type(maxconf) == int : #
-	print("Using max confidence value from user argument : " + str(maxconf) + "\n")
+if len(sys.argv) == 2:
+	maxconf = int(sys.argv[1])
+	print("Using max confidence value from user argument " + str(maxconf) + "\n")
 else:
-	maxconf=def_maxconf
+	maxconf = def_maxconf
 	print("Using max confidence value from default value " + str(maxconf) + "\n")
 
-for chunk in doc.chunks:
-	print(chunk.label + ": " + str(chunk.selected))
-	doc.chunk = doc.chunks[N]
-	filter_dense_cloud(chunk)
-	N+=1
+
+def filter_dense_cloud(chunk, maxconf):
+	chunk.dense_cloud.setConfidenceFilter(0, maxconf)  # configuring dense cloud filter so that only point with low-confidence currently active
+	all_points_classes = list(range(128))
+	chunk.dense_cloud.removePoints(all_points_classes)  # removes all active points of the dense cloud, i.e. removing all low-confidence points
+	chunk.dense_cloud.resetFilters()  # resetting filter, so that all other points (i.e. high-confidence points) are now active
 
 
-def filter_dense_cloud(chunk):
-	chunk.dense_cloud.setConfidenceFilter(0,maxconf)
-	chunk.dense_cloud.removePoints(list(range(128))) #removes all "visible" points of the dense cloud
-	chunk.dense_cloud.resetFilters()
-
+for chunk in Metashape.app.document.chunks:
+	print("Porcessing chunk " + chunk.label + "...")
+	filter_dense_cloud(chunk, maxconf)
