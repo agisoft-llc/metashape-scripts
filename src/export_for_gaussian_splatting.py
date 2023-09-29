@@ -41,6 +41,12 @@ import struct
 import math
 from PySide2 import QtGui, QtCore, QtWidgets
 
+# Checking compatibility
+compatible_major_version = "2.0"
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
+if found_major_version != compatible_major_version:
+    raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
+
 
 f32 = lambda x: bytes(struct.pack("f", x))
 d64 = lambda x: bytes(struct.pack("d", x))
@@ -539,12 +545,15 @@ class ExportSceneGUI(QtWidgets.QDialog):
 		self.exec()
 
 
-def export_scene_gui():
+def export_for_gaussian_splatting():
 	global app
 	app = QtWidgets.QApplication.instance()
 	parent = app.activeWindow()
 	dlg = ExportSceneGUI(parent)
 
+label = "Scripts/Export colmap project (for Gaussian Splatting)"
+Metashape.app.addMenuItem(label, export_for_gaussian_splatting)
+print("To execute this script press {}".format(label))
 
+# If you want to run this script automatically - use this instead:
 #export_scene()
-export_scene_gui()
