@@ -1,4 +1,5 @@
 # Exports undistorted photos, internal/external camera orientations, tie points in a simple COLMAP format.
+# Exported COLMAP project can be used as input for Gaussian Splatting. See how to use it - https://github.com/PolarNick239/gaussian-splatting-Windows#requirements
 #
 # Usecase: photo alignment was done in Metashape, export for Gaussian Splatting is required.
 #
