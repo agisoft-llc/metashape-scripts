@@ -71,6 +71,13 @@ def matrix_to_quat(m):
 		return Metashape.Vector([(m[0, 2] + m[2, 0]) / s, (m[1, 2] + m[2, 1]) / s, 0.25 * s, (m[1, 0] - m[0, 1]) / s])
 
 
+def get_camera_name(cam):
+	name = cam.label
+	ext = os.path.splitext(name)
+	if (len(ext[1]) == 0):
+		name = ext[0] + os.path.splitext(cam.photo.path)[1]
+	return name
+
 def clean_dir(folder, confirm_deletion):
 	if os.path.exists(folder):
 		if confirm_deletion:
@@ -290,10 +297,7 @@ def save_undistorted_images(frame, folder, calibs):
 			continue
 
 		img = cam.image().warp(calib0, T, calib1, T)
-		name = cam.label
-		ext = os.path.splitext(name)
-		if (len(ext[1]) == 0):
-			name = ext[0] + os.path.splitext(cam.photo.path)[1]
+		name = get_camera_name(cam)
 		img.save(folder + name)
 		cnt += 1
 	print("Undistorted", cnt, "cameras")
@@ -335,7 +339,7 @@ def save_images(frame, folder, only_good, calibs, tracks, images):
 			fout.write(d64(T.y))
 			fout.write(d64(T.z))
 			fout.write(u32(camera.sensor.key))
-			fout.write(bstr(camera.label))
+			fout.write(bstr(get_camera_name(camera)))
 
 			prjs = (good_prjs if only_good else good_prjs + bad_prjs)
 			fout.write(u64(len(prjs)))
@@ -401,7 +405,7 @@ class ExportSceneParams():
 		print("Using only uncropped projections:", self.only_good)
 
 
-def export_scene(params = ExportSceneParams(), progress = QtWidgets.QProgressBar()):
+def export_for_gaussian_splatting(params = ExportSceneParams(), progress = QtWidgets.QProgressBar()):
 	log_result = lambda x: print("", x, "-----------------------------------", sep="\n")
 	progress.setMinimum(0)
 	progress.setMaximum(1000)
@@ -471,7 +475,7 @@ class ExportSceneGUI(QtWidgets.QDialog):
 		params.all_frames = self.radioBtn_allF.isChecked()
 		params.zero_cxy = self.zcxyBox.isChecked()
 		try:
-			export_scene(params, self.pBar)
+			export_for_gaussian_splatting(params, self.pBar)
 		finally:
 			self.done(0)
 
@@ -545,15 +549,15 @@ class ExportSceneGUI(QtWidgets.QDialog):
 		self.exec()
 
 
-def export_for_gaussian_splatting():
+def export_for_gaussian_splatting_gui():
 	global app
 	app = QtWidgets.QApplication.instance()
 	parent = app.activeWindow()
 	dlg = ExportSceneGUI(parent)
 
 label = "Scripts/Export colmap project (for Gaussian Splatting)"
-Metashape.app.addMenuItem(label, export_for_gaussian_splatting)
+Metashape.app.addMenuItem(label, export_for_gaussian_splatting_gui)
 print("To execute this script press {}".format(label))
 
 # If you want to run this script automatically - use this instead:
-#export_scene()
+#export_for_gaussian_splatting()
