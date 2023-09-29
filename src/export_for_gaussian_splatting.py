@@ -8,8 +8,9 @@
 # 1.2.   Workflow -> Align Photos...
 # 2. Run script
 # 2.1.   Tools -> Run script... then choose this script, without arguments
-# 2.2.   Click Export
-# 2.3.   Choose destination folder (for several chunks/frames additional subfolders will be added)
+# 2.2.   Scripts -> Export Colmap project (for Gaussian Splatting)
+# 2.3.   Click Export
+# 2.4.   Choose destination folder (for several chunks/frames additional subfolders will be added)
 #
 # Options:
 # -- Enforce zero cx, cy -- output camera calibrations will have zero cx and cy.
@@ -555,7 +556,7 @@ def export_for_gaussian_splatting_gui():
     parent = app.activeWindow()
     dlg = ExportSceneGUI(parent)
 
-label = "Scripts/Export colmap project (for Gaussian Splatting)"
+label = "Scripts/Export Colmap project (for Gaussian Splatting)"
 Metashape.app.addMenuItem(label, export_for_gaussian_splatting_gui)
 print("To execute this script press {}".format(label))
 
