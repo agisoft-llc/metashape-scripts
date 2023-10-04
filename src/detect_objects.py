@@ -63,6 +63,8 @@
 import Metashape
 import pathlib, shutil, os, time
 from PySide2 import QtGui, QtCore, QtWidgets
+
+import urllib.request, tempfile
 from modules.pip_auto_install import pip_install
 
 
@@ -72,12 +74,15 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-import urllib.request, tempfile
-temporary_file = tempfile.NamedTemporaryFile(delete=False)
-find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
-urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
 
-pip_install("""-f {find_links_file_path}
+try:
+    import deepforest
+except ImportError:
+    temporary_file = tempfile.NamedTemporaryFile(delete=False)
+    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
+    urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
+
+    pip_install("""-f {find_links_file_path}
 -f https://download.pytorch.org/whl/torch_stable.html
 albumentations==1.0.3
 deepforest==1.2.4
