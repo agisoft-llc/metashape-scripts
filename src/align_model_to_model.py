@@ -18,6 +18,7 @@ from PySide2 import QtGui, QtCore, QtWidgets
 import os, copy, time, itertools, tempfile
 from pathlib import Path
 
+import urllib.request, tempfile
 from modules.pip_auto_install import pip_install
 
 # Checking compatibility
@@ -26,12 +27,16 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-import urllib.request, tempfile
-temporary_file = tempfile.NamedTemporaryFile(delete=False)
-find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
-urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
+try:
+    import open3d as o3d
+    from pyhull.convex_hull import ConvexHull
+    import numpy as np
+except ImportError:
+    temporary_file = tempfile.NamedTemporaryFile(delete=False)
+    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
+    urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
 
-pip_install("""-f {find_links_file_path}
+    pip_install("""-f {find_links_file_path}
 open3d == 0.16.0
 pyhull == 2015.2.1""".format(find_links_file_path=temporary_file.name.replace("\\", "\\\\")))
 
