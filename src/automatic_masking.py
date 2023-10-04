@@ -1,6 +1,6 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 #
-# Based on https://github.com/danielgatis/rembg (tested on rembg==2.0.24)
+# Based on https://github.com/danielgatis/rembg (tested on rembg==2.0.30)
 #
 # See also examples of rembg masking:
 # - https://peterfalkingham.com/2021/07/19/rembg-a-phenomenal-ai-based-background-remover/
@@ -32,13 +32,28 @@ if found_major_version != compatible_major_version:
 
 pip_install('''rembg==2.0.*''')
 
+rembg_ai_model_name = "u2net"  # see more details about different AI models here - https://github.com/danielgatis/rembg#models
+
+assert rembg_ai_model_name in [
+    "u2net",
+    "u2netp",
+    "u2net_human_seg",
+    "u2net_cloth_seg",
+    "silueta",
+    "isnet-general-use",
+    "isnet-anime",
+    "sam"
+]
+
 def generate_automatic_background_masks_with_rembg(chunk=None):
     try:
         import rembg
         import rembg.bg
+        import rembg.session_factory
         import scipy
         import numpy as np
         import io
+        import sys
         from PIL import Image
     except ImportError:
         print("Please ensure that you installed torch and rembg - see instructions in the script")
@@ -122,7 +137,10 @@ def generate_automatic_background_masks_with_rembg(chunk=None):
         img = np.array(img)
 
         with torch_lock:
-            mask = rembg.remove(img, alpha_matting=False, only_mask=True)
+            ai_session = rembg.session_factory.new_session(rembg_ai_model_name)
+            mask = rembg.remove(img, alpha_matting=False, only_mask=True, session=ai_session)
+            if mask.ndim != 2:
+                print("Generated mask is not two-dimensional, it has shape={}!".format(mask.shape), file=sys.stderr)
         mask = Image.fromarray(mask).resize((photo_image.width, photo_image.height))
         mask = np.array(mask)
 
