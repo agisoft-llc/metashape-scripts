@@ -67,17 +67,19 @@ from PySide2 import QtGui, QtCore, QtWidgets
 import urllib.request, tempfile
 from modules.pip_auto_install import pip_install
 
-
 # Checking compatibility
 compatible_major_version = "2.0"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-
 try:
     import deepforest
+    import torch
+    import pytorch_lightning
+    import albumentations
 except ImportError:
+    # install dependencies only if import fails to avoid network requests and repetive installations
     temporary_file = tempfile.NamedTemporaryFile(delete=False)
     find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
     urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
