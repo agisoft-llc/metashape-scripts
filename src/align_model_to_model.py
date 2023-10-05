@@ -28,10 +28,10 @@ if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 try:
-    import open3d as o3d
-    from pyhull.convex_hull import ConvexHull
-    import numpy as np
+    import open3d
+    import pyhull
 except ImportError:
+    # install dependencies only if import fails to avoid network requests and repetive installations
     temporary_file = tempfile.NamedTemporaryFile(delete=False)
     find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
     urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
