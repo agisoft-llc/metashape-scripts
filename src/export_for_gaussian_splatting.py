@@ -17,7 +17,7 @@
 #
 # Options:
 # -- Enforce zero cx, cy -- output camera calibrations will have zero cx and cy.
-#        May result in information loss during export.
+#        May result in information loss during export (large cropping).
 #        Should be checked until Gaussian Splatting software considers this parameters.
 # -- Use localframe -- shift coordinates origin to the center of the bounding box, use localframe rotation at this point
 # -- Image quality -- quality of the output undistorted images (jpeg only), min 0, max 100
@@ -416,7 +416,7 @@ def save_points(params, frame, folder, calibs, tracks, images):
 
 class ExportSceneParams():
     def __init__(self):
-		# default values for parameters
+        # default values for parameters
         self.all_chunks = False
         self.all_frames = False
 
@@ -576,6 +576,19 @@ class ExportSceneGUI(QtWidgets.QDialog):
         self.imgQualSpBox.setMinimum(0)
         self.imgQualSpBox.setMaximum(100)
         self.imgQualSpBox.setValue(defaults.image_quality)
+
+
+        zcxyToolTip = "Output camera calibrations will have zero cx and cy\nMay result in information loss during export (large cropping)\nShould be checked until Gaussian Splatting software considers this parameters"
+        self.zcxyTxt.setToolTip(zcxyToolTip)
+        self.zcxyBox.setToolTip(zcxyToolTip)
+
+        locFrameToolTip = "Shifts coordinates origin to the center of the bounding box\nUses localframe rotation at this point\nThis is useful to fix large coordinates"
+        self.locFrameTxt.setToolTip(locFrameToolTip)
+        self.locFrameBox.setToolTip(locFrameToolTip)
+
+        imgQualToolTip = "Quality of the output undistorted images (jpeg only)\nMin = 0, Max = 100"
+        self.imgQualTxt.setToolTip(imgQualToolTip)
+        self.imgQualSpBox.setToolTip(imgQualToolTip)
 
 
         layout = QtWidgets.QGridLayout()
