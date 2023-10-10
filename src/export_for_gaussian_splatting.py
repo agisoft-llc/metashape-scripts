@@ -13,10 +13,14 @@
 # 2.3.   Click Export
 # 2.4.   Choose destination folder (for several chunks/frames additional subfolders will be added)
 #
+# Default parameters for GUI can be changed in ExportSceneParams.__init__
+#
 # Options:
 # -- Enforce zero cx, cy -- output camera calibrations will have zero cx and cy.
 #        May result in information loss during export.
 #        Should be checked until Gaussian Splatting software considers this parameters.
+# -- Use localframe -- shift coordinates origin to the center of the bounding box, use localframe rotation at this point
+# -- Image quality -- quality of the output undistorted images (jpeg only), min 0, max 100
 #
 # Exported files structure (for all chunks and all frames):
 # <chosen_folder>
@@ -214,6 +218,16 @@ def check_undistorted_calib(sensor, calib):
     else:
         print("Ok:")
 
+def get_coord_transform(frame, use_localframe):
+    if not use_localframe:
+        return frame.transform.matrix
+    if not frame.region:
+        print("Null region, using world crs instead of local")
+        return frame.transform.matrix
+    fr_to_gc  = frame.transform.matrix
+    gc_to_loc = frame.crs.localframe(fr_to_gc.mulp(frame.region.center))
+    fr_to_loc = gc_to_loc * fr_to_gc
+    return (Metashape.Matrix.Translation(-fr_to_loc.mulp(frame.region.center)) * fr_to_loc)
 
 
 
@@ -246,7 +260,7 @@ def get_filtered_track_structure(frame, folder, calibs):
     tracks = {} # { track_id: [ point indices, good projections, bad projections ] }; projection = ( camera_key, projection_idx )
     images = {} # { camera_key: [ camera, good projections, bad projections ] }; projection = ( undistored pt in pixels, size, track_id )
     for cam in frame.cameras:
-        if cam.transform is None:
+        if cam.transform is None or cam.sensor is None or not cam.enabled:
             continue
         (calib0, calib1) = get_calibs(cam, calibs)
         if calib0 is None:
@@ -286,12 +300,14 @@ def get_filtered_track_structure(frame, folder, calibs):
 
 
 
-def save_undistorted_images(frame, folder, calibs):
+def save_undistorted_images(params, frame, folder, calibs):
     folder = folder + "images/"
     T = Metashape.Matrix.Diag([1, 1, 1, 1])
 
     cnt = 0
     for cam in frame.cameras:
+        if cam.transform is None or cam.sensor is None or not cam.enabled:
+            continue
         if cam.sensor.key not in calibs:
             continue
         (calib0, calib1) = get_calibs(cam, calibs)
@@ -300,11 +316,18 @@ def save_undistorted_images(frame, folder, calibs):
 
         img = cam.image().warp(calib0, T, calib1, T)
         name = get_camera_name(cam)
-        img.save(folder + name)
+        ext = os.path.splitext(name)[1]
+        if ext.lower() in [".jpg", ".jpeg"]:
+            c = Metashape.ImageCompression()
+            c.jpeg_quality = params.image_quality
+            img.save(folder + name, c)
+        else:
+            img.save(folder + name)
         cnt += 1
     print("Undistorted", cnt, "cameras")
 
-def save_cameras(folder, calibs, use_pinhole_model):
+def save_cameras(params, folder, calibs):
+    use_pinhole_model = params.use_pinhole_model
     with open(folder + "sparse/0/cameras.bin", "wb") as fout:
         fout.write(u64(len(calibs)))
         for (s_key, (sensor, calib)) in calibs.items():
@@ -322,13 +345,14 @@ def save_cameras(folder, calibs, use_pinhole_model):
 
 # { camera_key: [ camera, good projections, bad projections ] }; projection = ( undistored pt in pixels, size, track_id )
 
-def save_images(frame, folder, only_good, calibs, tracks, images):
-    ck = Metashape.app.document.chunk
+def save_images(params, frame, folder, calibs, tracks, images):
+    only_good = params.only_good
+    T_shift = get_coord_transform(frame, params.use_localframe)
 
     with open(folder + "sparse/0/images.bin", "wb") as fout:
         fout.write(u64(len(images)))
         for (cam_key, [camera, good_prjs, bad_prjs]) in images.items():
-            transform = frame.transform.matrix * camera.transform
+            transform = T_shift * camera.transform
             R = transform.rotation().inv()
             T = -1 * (R * transform.translation())
             Q = matrix_to_quat(R)
@@ -355,7 +379,9 @@ def save_images(frame, folder, only_good, calibs, tracks, images):
 
 # { track_id: [ point indices, good projections, bad projections ] }; projection = ( camera_key, projection_idx )
 
-def save_points(frame, folder, only_good, calibs, tracks, images):
+def save_points(params, frame, folder, calibs, tracks, images):
+    only_good = params.only_good
+    T = get_coord_transform(frame, params.use_localframe)
     num_pts = len(list(filter(lambda x: len(x[0]) == 1, tracks.values())))
 
     with open(folder + "sparse/0/points3D.bin", "wb") as fout:
@@ -364,7 +390,7 @@ def save_points(frame, folder, only_good, calibs, tracks, images):
             if (len(points) != 1):
                 continue
             point = frame.tie_points.points[points[0]]
-            pt = frame.transform.matrix * point.coord
+            pt = T * point.coord
             track = frame.tie_points.tracks[track_id]
             fout.write(u64(track_id))
             fout.write(d64(pt.x))
@@ -390,10 +416,13 @@ def save_points(frame, folder, only_good, calibs, tracks, images):
 
 class ExportSceneParams():
     def __init__(self):
+		# default values for parameters
         self.all_chunks = False
         self.all_frames = False
 
         self.zero_cxy = True
+        self.use_localframe = True
+        self.image_quality = 90
         self.confirm_deletion = True
         self.use_pinhole_model = True
         self.only_good = True
@@ -402,6 +431,8 @@ class ExportSceneParams():
         print("All chunks:", self.all_chunks)
         print("All frames:", self.all_frames)
         print("Zero cx and cy:", self.zero_cxy)
+        print("Use local coordinate frame:", self.use_localframe)
+        print("Image quality:", self.image_quality)
         print("Confirm deletion:", self.confirm_deletion)
         print("Using pinhole model instead of simple_pinhole:", self.use_pinhole_model)
         print("Using only uncropped projections:", self.only_good)
@@ -458,10 +489,10 @@ def export_for_gaussian_splatting(params = ExportSceneParams(), progress = QtWid
             calibs = compute_undistorted_calibs(frame, params.zero_cxy)
             (tracks, images) = get_filtered_track_structure(frame, folder, calibs)
 
-            save_undistorted_images(frame, folder, calibs)
-            save_cameras(folder, calibs, params.use_pinhole_model)
-            save_images(frame, folder, params.only_good, calibs, tracks, images)
-            save_points(frame, folder, params.only_good, calibs, tracks, images)
+            save_undistorted_images(params, frame, folder, calibs)
+            save_cameras(params, folder, calibs)
+            save_images(params, frame, folder, calibs, tracks, images)
+            save_points(params, frame, folder, calibs, tracks, images)
 
     set_progress(1)
     log_result("Done")
@@ -476,6 +507,8 @@ class ExportSceneGUI(QtWidgets.QDialog):
         params.all_chunks = self.radioBtn_allC.isChecked()
         params.all_frames = self.radioBtn_allF.isChecked()
         params.zero_cxy = self.zcxyBox.isChecked()
+        params.use_localframe = self.locFrameBox.isChecked()
+        params.image_quality = self.imgQualSpBox.value()
         try:
             export_for_gaussian_splatting(params, self.pBar)
         finally:
@@ -484,6 +517,8 @@ class ExportSceneGUI(QtWidgets.QDialog):
     def __init__(self, parent):
         QtWidgets.QDialog.__init__(self, parent)
         self.setWindowTitle("Export scene in Colmap format:")
+
+        defaults = ExportSceneParams()
 
         self.btnQuit = QtWidgets.QPushButton("Quit")
         self.btnQuit.setFixedSize(100,25)
@@ -508,23 +543,40 @@ class ExportSceneGUI(QtWidgets.QDialog):
         self.radioBtn_selC = QtWidgets.QRadioButton("selected")
         self.chunk_group.addButton(self.radioBtn_selC)
         self.chunk_group.addButton(self.radioBtn_allC)
-        self.radioBtn_allC.setChecked(False)
-        self.radioBtn_selC.setChecked(True)
+        self.radioBtn_allC.setChecked(defaults.all_chunks)
+        self.radioBtn_selC.setChecked(not defaults.all_chunks)
 
         self.frames_group = QtWidgets.QButtonGroup()
         self.radioBtn_allF = QtWidgets.QRadioButton("all frames")
         self.radioBtn_selF = QtWidgets.QRadioButton("active")
         self.frames_group.addButton(self.radioBtn_selF)
         self.frames_group.addButton(self.radioBtn_allF)
-        self.radioBtn_allF.setChecked(False)
-        self.radioBtn_selF.setChecked(True)
+        self.radioBtn_allF.setChecked(defaults.all_frames)
+        self.radioBtn_selF.setChecked(not defaults.all_frames)
 
         self.zcxyTxt = QtWidgets.QLabel()
         self.zcxyTxt.setText("Enforce zero cx, cy")
         self.zcxyTxt.setFixedSize(100, 25)
 
         self.zcxyBox = QtWidgets.QCheckBox()
-        self.zcxyBox.setChecked(ExportSceneParams().zero_cxy)
+        self.zcxyBox.setChecked(defaults.zero_cxy)
+
+        self.locFrameTxt = QtWidgets.QLabel()
+        self.locFrameTxt.setText("Use localframe")
+        self.locFrameTxt.setFixedSize(100, 25)
+
+        self.locFrameBox = QtWidgets.QCheckBox()
+        self.locFrameBox.setChecked(defaults.use_localframe)
+
+        self.imgQualTxt = QtWidgets.QLabel()
+        self.imgQualTxt.setText("Image quality")
+        self.imgQualTxt.setFixedSize(100, 25)
+
+        self.imgQualSpBox = QtWidgets.QSpinBox()
+        self.imgQualSpBox.setMinimum(0)
+        self.imgQualSpBox.setMaximum(100)
+        self.imgQualSpBox.setValue(defaults.image_quality)
+
 
         layout = QtWidgets.QGridLayout()
         layout.setSpacing(9)
@@ -536,12 +588,16 @@ class ExportSceneGUI(QtWidgets.QDialog):
         layout.addWidget(self.radioBtn_selF, 2, 2)
         layout.addWidget(self.zcxyTxt, 3, 0)
         layout.addWidget(self.zcxyBox, 3, 1)
-        layout.addWidget(self.pBar, 4, 0)
-        layout.addWidget(self.btnP1, 4, 1)
-        layout.addWidget(self.btnQuit, 4, 2)
+        layout.addWidget(self.locFrameTxt, 4, 0)
+        layout.addWidget(self.locFrameBox, 4, 1)
+        layout.addWidget(self.imgQualTxt, 5, 0)
+        layout.addWidget(self.imgQualSpBox, 5, 1, 1, 2)
+        layout.addWidget(self.pBar, 6, 0)
+        layout.addWidget(self.btnP1, 6, 1)
+        layout.addWidget(self.btnQuit, 6, 2)
         self.setLayout(layout)
 
-        self.buttons = [self.btnP1, self.btnQuit, self.radioBtn_allC, self.radioBtn_selC, self.radioBtn_allF, self.radioBtn_selF, self.zcxyBox]
+        self.buttons = [self.btnP1, self.btnQuit, self.radioBtn_allC, self.radioBtn_selC, self.radioBtn_allF, self.radioBtn_selF, self.zcxyBox, self.locFrameBox, self.imgQualSpBox]
 
         proc = lambda : self.run_export()
 
