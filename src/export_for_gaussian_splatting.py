@@ -142,6 +142,9 @@ def get_chunk_dirs(folder, params):
 def compute_undistorted_calib(sensor, zero_cxy):
     border = 0 # in pixels, can be increased if black margins are on the undistorted images
 
+    if sensor.type != Metashape.Sensor.Type.Frame:
+        return Metashape.Calibration()
+
     calib_initial = sensor.calibration
     w = calib_initial.width
     h = calib_initial.height
@@ -247,7 +250,7 @@ def compute_undistorted_calibs(frame, zero_cxy):
 def get_calibs(camera, calibs):
     s_key = camera.sensor.key
     if s_key not in calibs:
-        print("Camera " + camera.label + " (key = " + str(camera.key) + ") has cropped sensor (key = " + str(s_key) + ")")
+        print("Camera " + camera.label + " (key = " + str(camera.key) + ") has cropped/unsupported sensor (key = " + str(s_key) + ")")
         return (None, None)
     return (calibs[s_key][0].calibration, calibs[s_key][1])
 
