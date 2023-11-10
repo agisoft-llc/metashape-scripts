@@ -6,7 +6,9 @@
 # Usage:
 # 1. Align photos
 # 1.1.   Workflow -> Add Photos...
-# 1.2.   Workflow -> Align Photos...
+# 1.1.0. (optional, in case of large cropping)
+#        Tools -> Camera Calibration... -> select all calibration gropus at the left panel -> Fixed parameters: -> Select... -> check "cx, cy"
+# 1.2.   Workflow -> Align Photos... (check "Adaptive camera model fitting" if you have several small calibration groups)
 # 2. Run script
 # 2.1.   Tools -> Run script... then choose this script, without arguments
 # 2.2.   Scripts -> Export Colmap project (for Gaussian Splatting)
@@ -17,8 +19,9 @@
 #
 # Options:
 # -- Enforce zero cx, cy -- output camera calibrations will have zero cx and cy.
-#        May result in information loss during export (large cropping).
 #        Should be checked until Gaussian Splatting software considers this parameters.
+#        May result in information loss during export (large cropping).
+#        To mitigate that effect, do step 1.1.0. and check "Adaptive camera model fitting" at 1.2.
 # -- Use localframe -- shift coordinates origin to the center of the bounding box, use localframe rotation at this point
 # -- Image quality -- quality of the output undistorted images (jpeg only), min 0, max 100
 #
@@ -250,7 +253,8 @@ def compute_undistorted_calibs(frame, zero_cxy):
 def get_calibs(camera, calibs):
     s_key = camera.sensor.key
     if s_key not in calibs:
-        print("Camera " + camera.label + " (key = " + str(camera.key) + ") has cropped/unsupported sensor (key = " + str(s_key) + ")")
+        cause = "unsupported" if camera.sensor.type != Metashape.Sensor.Type.Frame else "cropped"
+        print("Camera " + camera.label + " (key = " + str(camera.key) + ") has " + cause + " sensor (key = " + str(s_key) + ")")
         return (None, None)
     return (calibs[s_key][0].calibration, calibs[s_key][1])
 
@@ -581,7 +585,7 @@ class ExportSceneGUI(QtWidgets.QDialog):
         self.imgQualSpBox.setValue(defaults.image_quality)
 
 
-        zcxyToolTip = "Output camera calibrations will have zero cx and cy\nMay result in information loss during export (large cropping)\nShould be checked until Gaussian Splatting software considers this parameters"
+        zcxyToolTip = 'Output camera calibrations will have zero cx and cy\nShould be checked until Gaussian Splatting software considers this parameters\nMay result in information loss during export (large cropping)\nTo mitigate that effect, do step 1.1.0. and check "Adaptive camera model fitting" at 1.2. of the script description'
         self.zcxyTxt.setToolTip(zcxyToolTip)
         self.zcxyBox.setToolTip(zcxyToolTip)
 
