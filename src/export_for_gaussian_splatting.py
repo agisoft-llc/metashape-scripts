@@ -7,7 +7,7 @@
 # 1. Align photos
 # 1.1.   Workflow -> Add Photos...
 # 1.1.0. (optional, in case of large cropping)
-#        Tools -> Camera Calibration... -> select all calibration gropus at the left panel -> Fixed parameters: -> Select... -> check "cx, cy"
+#        Tools -> Camera Calibration... -> select all calibration groups at the left panel -> Fixed parameters: -> Select... -> check "cx, cy"
 # 1.2.   Workflow -> Align Photos... (check "Adaptive camera model fitting" if you have several small calibration groups)
 # 2. Run script
 # 2.1.   Tools -> Run script... then choose this script, without arguments
@@ -24,6 +24,7 @@
 #        To mitigate that effect, do step 1.1.0. and check "Adaptive camera model fitting" at 1.2.
 # -- Use localframe -- shift coordinates origin to the center of the bounding box, use localframe rotation at this point
 # -- Image quality -- quality of the output undistorted images (jpeg only), min 0, max 100
+# -- (advanced) Export images -- you can disable export of the undistorted images
 #
 # Exported files structure (for all chunks and all frames):
 # <chosen_folder>
@@ -429,8 +430,8 @@ class ExportSceneParams():
 
         self.zero_cxy = True
         self.use_localframe = True
-        self.export_images = True
         self.image_quality = 90
+        self.export_images = True
         self.confirm_deletion = True
         self.use_pinhole_model = True
         self.only_good = True
@@ -441,6 +442,7 @@ class ExportSceneParams():
         print("Zero cx and cy:", self.zero_cxy)
         print("Use local coordinate frame:", self.use_localframe)
         print("Image quality:", self.image_quality)
+        print("Export images:", self.export_images)
         print("Confirm deletion:", self.confirm_deletion)
         print("Using pinhole model instead of simple_pinhole:", self.use_pinhole_model)
         print("Using only uncropped projections:", self.only_good)
@@ -506,6 +508,28 @@ def export_for_gaussian_splatting(params = ExportSceneParams(), progress = QtWid
     set_progress(1)
     log_result("Done")
 
+
+class CollapsibleGroupBox(QtWidgets.QGroupBox):
+    def __init__(self, parent = None):
+        QtWidgets.QGroupBox.__init__(self, parent)
+        self.toggled.connect(self.onCheckedChanged)
+        self.maxHeight = self.maximumHeight()
+
+    def onCheckedChanged(self, is_on):
+        if not is_on:
+            self.oldSize = self.size()
+
+        for child in self.children():
+            if isinstance(child, QtWidgets.QWidget):
+                child.setVisible(is_on)
+
+        if is_on:
+            self.setMaximumHeight(self.maxHeight)
+            self.resize(self.oldSize)
+        else:
+            self.maxHeight = self.maximumHeight()
+            self.setMaximumHeight(QtGui.QFontMetrics(self.font()).height() + 4)
+
 class ExportSceneGUI(QtWidgets.QDialog):
 
     def run_export(self):
@@ -517,8 +541,8 @@ class ExportSceneGUI(QtWidgets.QDialog):
         params.all_frames = self.radioBtn_allF.isChecked()
         params.zero_cxy = self.zcxyBox.isChecked()
         params.use_localframe = self.locFrameBox.isChecked()
-        params.export_images = self.expImagesBox.isChecked()
         params.image_quality = self.imgQualSpBox.value()
+        params.export_images = self.expImagesBox.isChecked()
         try:
             export_for_gaussian_splatting(params, self.pBar)
         finally:
@@ -578,13 +602,6 @@ class ExportSceneGUI(QtWidgets.QDialog):
         self.locFrameBox = QtWidgets.QCheckBox()
         self.locFrameBox.setChecked(defaults.use_localframe)
 
-        self.expImagesTxt = QtWidgets.QLabel()
-        self.expImagesTxt.setText("Export Images")
-        self.expImagesTxt.setFixedSize(100, 25)
-
-        self.expImagesBox = QtWidgets.QCheckBox()
-        self.expImagesBox.setChecked(defaults.export_images)
-
         self.imgQualTxt = QtWidgets.QLabel()
         self.imgQualTxt.setText("Image quality")
         self.imgQualTxt.setFixedSize(100, 25)
@@ -593,6 +610,14 @@ class ExportSceneGUI(QtWidgets.QDialog):
         self.imgQualSpBox.setMinimum(0)
         self.imgQualSpBox.setMaximum(100)
         self.imgQualSpBox.setValue(defaults.image_quality)
+
+        self.expImagesTxt = QtWidgets.QLabel()
+        self.expImagesTxt.setText("Export images")
+        self.expImagesTxt.setFixedSize(100, 25)
+
+        self.expImagesBox = QtWidgets.QCheckBox()
+        self.expImagesBox.setChecked(defaults.export_images)
+
 
 
         zcxyToolTip = 'Output camera calibrations will have zero cx and cy\nShould be checked until Gaussian Splatting software considers this parameters\nMay result in information loss during export (large cropping)\nTo mitigate that effect, do step 1.1.0. and check "Adaptive camera model fitting" at 1.2. of the script description'
@@ -607,29 +632,52 @@ class ExportSceneGUI(QtWidgets.QDialog):
         self.imgQualTxt.setToolTip(imgQualToolTip)
         self.imgQualSpBox.setToolTip(imgQualToolTip)
 
+        expImagesToolTip = "You can disable export of the undistorted images"
+        self.expImagesTxt.setToolTip(expImagesToolTip)
+        self.expImagesBox.setToolTip(expImagesToolTip)
+
+
+        general_layout = QtWidgets.QGridLayout()
+        general_layout.setSpacing(9)
+        general_layout.addWidget(self.chnkTxt, 1, 0)
+        general_layout.addWidget(self.radioBtn_allC, 1, 1)
+        general_layout.addWidget(self.radioBtn_selC, 1, 2)
+        general_layout.addWidget(self.frmsTxt, 2, 0)
+        general_layout.addWidget(self.radioBtn_allF, 2, 1)
+        general_layout.addWidget(self.radioBtn_selF, 2, 2)
+        general_layout.addWidget(self.zcxyTxt, 3, 0)
+        general_layout.addWidget(self.zcxyBox, 3, 1)
+        general_layout.addWidget(self.locFrameTxt, 4, 0)
+        general_layout.addWidget(self.locFrameBox, 4, 1)
+        general_layout.addWidget(self.imgQualTxt, 5, 0)
+        general_layout.addWidget(self.imgQualSpBox, 5, 1, 1, 2)
+
+        advanced_layout = QtWidgets.QGridLayout()
+        advanced_layout.setSpacing(9)
+        advanced_layout.addWidget(self.expImagesTxt, 0, 0)
+        advanced_layout.addWidget(self.expImagesBox, 0, 1)
+
+        self.gbGeneral = QtWidgets.QGroupBox()
+        self.gbGeneral.setLayout(general_layout)
+        self.gbGeneral.setTitle("General")
+
+        self.gbAdvanced = CollapsibleGroupBox()
+        self.gbAdvanced.setLayout(advanced_layout)
+        self.gbAdvanced.setTitle("Advanced")
+        self.gbAdvanced.setCheckable(True)
+        self.gbAdvanced.setChecked(False)
+        self.gbAdvanced.toggled.connect(lambda: QtCore.QTimer.singleShot(20, lambda: self.adjustSize()))
 
         layout = QtWidgets.QGridLayout()
-        layout.setSpacing(9)
-        layout.addWidget(self.chnkTxt, 1, 0)
-        layout.addWidget(self.radioBtn_allC, 1, 1)
-        layout.addWidget(self.radioBtn_selC, 1, 2)
-        layout.addWidget(self.frmsTxt, 2, 0)
-        layout.addWidget(self.radioBtn_allF, 2, 1)
-        layout.addWidget(self.radioBtn_selF, 2, 2)
-        layout.addWidget(self.zcxyTxt, 3, 0)
-        layout.addWidget(self.zcxyBox, 3, 1)
-        layout.addWidget(self.locFrameTxt, 4, 0)
-        layout.addWidget(self.locFrameBox, 4, 1)
-        layout.addWidget(self.expImagesTxt, 5, 0)
-        layout.addWidget(self.expImagesBox, 5, 1)
-        layout.addWidget(self.imgQualTxt, 6, 0)
-        layout.addWidget(self.imgQualSpBox, 6, 1, 1, 2)
-        layout.addWidget(self.pBar, 7, 0)
-        layout.addWidget(self.btnP1, 7, 1)
-        layout.addWidget(self.btnQuit, 7, 2)
+        layout.addWidget(self.gbGeneral, 0, 0, 1, 3)
+        layout.addWidget(self.gbAdvanced, 1, 0, 1, 3)
+        layout.addItem(QtWidgets.QSpacerItem(1, 1, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.MinimumExpanding))
+        layout.addWidget(self.pBar, 3, 0)
+        layout.addWidget(self.btnP1, 3, 1)
+        layout.addWidget(self.btnQuit, 3, 2)
         self.setLayout(layout)
 
-        self.buttons = [self.btnP1, self.btnQuit, self.radioBtn_allC, self.radioBtn_selC, self.radioBtn_allF, self.radioBtn_selF, self.zcxyBox, self.locFrameBox, self.expImagesBox, self.imgQualSpBox]
+        self.buttons = [self.btnP1, self.btnQuit, self.radioBtn_allC, self.radioBtn_selC, self.radioBtn_allF, self.radioBtn_selF, self.zcxyBox, self.locFrameBox, self.imgQualSpBox, self.expImagesBox]
 
         proc = lambda : self.run_export()
 
