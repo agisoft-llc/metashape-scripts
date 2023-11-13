@@ -429,6 +429,7 @@ class ExportSceneParams():
 
         self.zero_cxy = True
         self.use_localframe = True
+        self.export_images = True
         self.image_quality = 90
         self.confirm_deletion = True
         self.use_pinhole_model = True
@@ -496,7 +497,8 @@ def export_for_gaussian_splatting(params = ExportSceneParams(), progress = QtWid
             calibs = compute_undistorted_calibs(frame, params.zero_cxy)
             (tracks, images) = get_filtered_track_structure(frame, folder, calibs)
 
-            save_undistorted_images(params, frame, folder, calibs)
+            if params.export_images:
+                save_undistorted_images(params, frame, folder, calibs)
             save_cameras(params, folder, calibs)
             save_images(params, frame, folder, calibs, tracks, images)
             save_points(params, frame, folder, calibs, tracks, images)
@@ -515,6 +517,7 @@ class ExportSceneGUI(QtWidgets.QDialog):
         params.all_frames = self.radioBtn_allF.isChecked()
         params.zero_cxy = self.zcxyBox.isChecked()
         params.use_localframe = self.locFrameBox.isChecked()
+        params.export_images = self.expImagesBox.isChecked()
         params.image_quality = self.imgQualSpBox.value()
         try:
             export_for_gaussian_splatting(params, self.pBar)
@@ -575,6 +578,13 @@ class ExportSceneGUI(QtWidgets.QDialog):
         self.locFrameBox = QtWidgets.QCheckBox()
         self.locFrameBox.setChecked(defaults.use_localframe)
 
+        self.expImagesTxt = QtWidgets.QLabel()
+        self.expImagesTxt.setText("Export Images")
+        self.expImagesTxt.setFixedSize(100, 25)
+
+        self.expImagesBox = QtWidgets.QCheckBox()
+        self.expImagesBox.setChecked(defaults.export_images)
+
         self.imgQualTxt = QtWidgets.QLabel()
         self.imgQualTxt.setText("Image quality")
         self.imgQualTxt.setFixedSize(100, 25)
@@ -610,14 +620,16 @@ class ExportSceneGUI(QtWidgets.QDialog):
         layout.addWidget(self.zcxyBox, 3, 1)
         layout.addWidget(self.locFrameTxt, 4, 0)
         layout.addWidget(self.locFrameBox, 4, 1)
-        layout.addWidget(self.imgQualTxt, 5, 0)
-        layout.addWidget(self.imgQualSpBox, 5, 1, 1, 2)
-        layout.addWidget(self.pBar, 6, 0)
-        layout.addWidget(self.btnP1, 6, 1)
-        layout.addWidget(self.btnQuit, 6, 2)
+        layout.addWidget(self.expImagesTxt, 5, 0)
+        layout.addWidget(self.expImagesBox, 5, 1)
+        layout.addWidget(self.imgQualTxt, 6, 0)
+        layout.addWidget(self.imgQualSpBox, 6, 1, 1, 2)
+        layout.addWidget(self.pBar, 7, 0)
+        layout.addWidget(self.btnP1, 7, 1)
+        layout.addWidget(self.btnQuit, 7, 2)
         self.setLayout(layout)
 
-        self.buttons = [self.btnP1, self.btnQuit, self.radioBtn_allC, self.radioBtn_selC, self.radioBtn_allF, self.radioBtn_selF, self.zcxyBox, self.locFrameBox, self.imgQualSpBox]
+        self.buttons = [self.btnP1, self.btnQuit, self.radioBtn_allC, self.radioBtn_selC, self.radioBtn_allF, self.radioBtn_selF, self.zcxyBox, self.locFrameBox, self.expImagesBox, self.imgQualSpBox]
 
         proc = lambda : self.run_export()
 
