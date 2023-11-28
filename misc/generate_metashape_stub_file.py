@@ -1,11 +1,13 @@
 # Script generates a Metashape.pyi stub file
 # which can be used for type annotations in your preferred code editor when coding Metashape scripts
+# This script was contributed in https://github.com/agisoft-llc/metashape-scripts/pull/59
 #
 # This is NOT a script to be used in Metashape or for processing Metashape projects
+# This script is used in internal CI releases build process
 #
 # For this to work, the Metashape wheel has to be installed
 # Download the Python 3 module here: https://www.agisoft.com/downloads/installer/
-# Then run `pip install Metashape-2.0.1-cp37.cp38.cp39.cp310.cp311-none-win_amd64.whl`
+# Then run `pip install Metashape-*.whl`
 # (preferably do this in a virtual environment)
 #
 # Depending on your code editor
@@ -23,8 +25,25 @@ import re
 import textwrap
 
 metashape = importlib.import_module('Metashape.Metashape')
-# metashape_dict = metashape.__dict__
 
+
+def extract_rtype_from_doc(doc):
+    lines = doc.split("\n")
+    rtype = None
+    for line in lines:
+        if ":rtype:" in line:
+            assert rtype is None # ensuring that rtype is unique
+            rtype = line.split(":rtype:")[-1].strip()
+    return rtype
+
+def format_rtype_suffix(rtype):
+    if rtype is None:
+        rtype = ""
+    else:
+        if rtype.startswith("Metashape."):
+            rtype = rtype[len("Metashape."):]
+        rtype = " -> " + rtype
+    return rtype
 
 # https://stackoverflow.com/questions/49409249/python-generate-function-stubs-from-c-module
 def write_stub_recursive(name: str, object: type, level: int):
@@ -64,7 +83,9 @@ def write_stub_recursive(name: str, object: type, level: int):
                     f.write(
                         f'{offset}def {name} {inspect.signature(object)}:\n')
                 except:
-                    f.write(f'{offset}def {name} (self, *args, **kwargs):\n')
+                    rtype = extract_rtype_from_doc(object.__doc__)
+                    rtype = format_rtype_suffix(rtype)
+                    f.write(f'{offset}def {name} (self, *args, **kwargs){rtype}:\n')
                 f.write(textwrap.indent(
                     f'"""{inspect.cleandoc(object.__doc__)}"""', offset+"\t"))
                 f.write(f'\n{offset}...\n')
