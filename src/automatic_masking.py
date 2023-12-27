@@ -25,7 +25,7 @@ import concurrent.futures
 from modules.pip_auto_install import pip_install
 
 # Checking compatibility
-compatible_major_version = "2.0"
+compatible_major_version = "2.1"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
