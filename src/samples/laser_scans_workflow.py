@@ -18,16 +18,12 @@ import Metashape
 import os, sys
 
 # Checking compatibility
-compatible_major_version = "2.0"
-compatible_micro_version = 2
+compatible_major_version = "2.1"
 version_split = Metashape.app.version.split('.')
 found_major_version = ".".join(version_split[:2])
-found_micro_version = int(version_split[2])
 
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
-if found_micro_version < compatible_micro_version:
-    raise Exception("Incompatible Metashape version: {}.{} < {}.{}".format(found_major_version, found_micro_version, compatible_major_version, compatible_micro_version))
 
 def find_files(folder, types):
     return [entry.path for entry in os.scandir(folder) if (entry.is_file() and os.path.splitext(entry.name)[1].lower() in types)]
@@ -98,7 +94,7 @@ doc.save()
 chunk.buildDepthMaps(downscale = 2, filter_mode = Metashape.MildFiltering)
 doc.save()
 
-chunk.buildModel(source_data = Metashape.DepthMapsData)
+chunk.buildModel(source_data = Metashape.DepthMapsAndLaserScansData)
 doc.save()
 
 if chunk.model:
