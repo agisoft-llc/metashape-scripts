@@ -3,15 +3,16 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
 import math
+import Metashape
 
 view_consistent_direction = False
 result_height_px = 4000
 
 # Checking compatibility
-preferred_major_version = "2.0"
+compatible_major_version = "2.1"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
-if found_major_version != preferred_major_version:
-    print("Unsupported Metashape version: {} != {}. Script may not work properly".format(found_major_version, preferred_major_version))
+if found_major_version != compatible_major_version:
+    print("Unsupported Metashape version: {} != {}. Script may not work properly".format(found_major_version, compatible_major_version))
 
 def render_spherical_panorama(result_height_px, center, rotation, result_path):
     """

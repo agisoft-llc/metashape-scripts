@@ -7,7 +7,7 @@ import multiprocessing
 import concurrent.futures
 
 # Checking compatibility
-compatible_major_version = "2.0"
+compatible_major_version = "2.1"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -34,12 +34,18 @@ def create_footprints():
     footprints.label = "Footprints"
     footprints.color = (30, 239, 30)
 
-    if chunk.model:
+    if chunk.elevation:
+        surface = chunk.elevation
+    elif chunk.model:
         surface = chunk.model
     elif chunk.point_cloud:
         surface = chunk.point_cloud
     else:
         surface = chunk.tie_points
+
+    chunk_crs = chunk.crs.geoccs
+    if chunk_crs is None:
+        chunk_crs = Metashape.CoordinateSystem('LOCAL')
 
     def process_camera(chunk, camera):
         if camera.type != Metashape.Camera.Type.Regular or not camera.transform:
@@ -50,16 +56,23 @@ def create_footprints():
         for (x, y) in [[0, 0], [sensor.width - 1, 0], [sensor.width - 1, sensor.height - 1], [0, sensor.height - 1]]:
             ray_origin = camera.unproject(Metashape.Vector([x, y, 0]))
             ray_target = camera.unproject(Metashape.Vector([x, y, 1]))
-            corners.append(surface.pickPoint(ray_origin, ray_target))
-            if not corners[-1]:
-                corners[-1] = chunk.tie_points.pickPoint(ray_origin, ray_target)
-            if not corners[-1]:
+            if type(surface) == Metashape.Elevation:
+                dem_origin = T.mulp(ray_origin)
+                dem_target = T.mulp(ray_target)
+                dem_origin = Metashape.OrthoProjection.transform(dem_origin, chunk_crs, surface.projection)
+                dem_target = Metashape.OrthoProjection.transform(dem_target, chunk_crs, surface.projection)
+                corner = surface.pickPoint(dem_origin, dem_target)
+                if corner:
+                    corner = Metashape.OrthoProjection.transform(corner, surface.projection, chunk_crs)
+                    corner = T.inv().mulp(corner)
+            else:
+                corner = surface.pickPoint(ray_origin, ray_target)
+            if not corner:
+                corner = chunk.tie_points.pickPoint(ray_origin, ray_target)
+            if not corner:
                 break
-            corners[-1] = chunk.crs.project(T.mulp(corners[-1]))
-
-        if not all(corners):
-            print("Skipping camera " + camera.label)
-            return
+            corner = chunk.crs.project(T.mulp(corner))
+            corners.append(corner)
 
         if len(corners) == 4:
             shape = chunk.shapes.addShape()
@@ -67,6 +80,8 @@ def create_footprints():
             shape.attributes["Photo"] = camera.label
             shape.group = footprints
             shape.geometry = Metashape.Geometry.Polygon(corners)
+        else:
+            print("Skipping camera " + camera.label)
 
     with concurrent.futures.ThreadPoolExecutor(multiprocessing.cpu_count()) as executor:
         executor.map(lambda camera: process_camera(chunk, camera), chunk.cameras)

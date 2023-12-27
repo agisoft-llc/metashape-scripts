@@ -22,7 +22,7 @@ import urllib.request, tempfile
 from modules.pip_auto_install import pip_install
 
 # Checking compatibility
-compatible_major_version = "2.0"
+compatible_major_version = "2.1"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
@@ -436,26 +436,13 @@ class AlignModelDlg(QtWidgets.QDialog):
 
         self.exec()
 
-    def get_model_T(self, model):
-        world_crs = self.chunk.crs
-        world_transform = self.chunk.transform.matrix
-
-        pt0 = world_transform.translation()
-        pt0 = world_crs.project(pt0)
-        pt0.z = 0
-        pt0 = world_crs.unproject(pt0)
-        Tlocal = world_crs.localframe(pt0)
-
-        T = Tlocal * world_transform
-        return T, Tlocal
-
-    def get_point_cloud_T(self, point_cloud):
-        if point_cloud.crs is None:
+    def get_asset_T(self, asset):
+        if asset.crs is None:
             world_crs = self.chunk.crs
-            world_transform = self.chunk.transform.matrix * point_cloud.transform
+            world_transform = self.chunk.transform.matrix * asset.transform
         else:
-            world_crs = point_cloud.crs
-            world_transform = point_cloud.transform
+            world_crs = asset.crs
+            world_transform = asset.transform
 
         pt0 = world_transform.translation()
         pt0 = world_crs.project(pt0)
@@ -528,11 +515,11 @@ class AlignModelDlg(QtWidgets.QDialog):
         if isModel1:
             assert(self.chunk.model.key == key1)
             model1 = self.chunk.model
-            T1, Tlocal1 = self.get_model_T(model1)
+            T1, Tlocal1 = self.get_asset_T(model1)
         else:
             assert(self.chunk.point_cloud.key == key1)
             point_cloud1 = self.chunk.point_cloud
-            T1, Tlocal1 = self.get_point_cloud_T(point_cloud1)
+            T1, Tlocal1 = self.get_asset_T(point_cloud1)
 
         if isModel2:
             model2 = None
@@ -540,20 +527,20 @@ class AlignModelDlg(QtWidgets.QDialog):
                 if model.key == key2:
                     model2 = model
             assert model2 is not None
-            _, Tlocal2 = self.get_model_T(model2)
+            _, Tlocal2 = self.get_asset_T(model2)
         else:
             point_cloud2 = None
             for point_cloud in self.chunk.point_clouds:
                 if point_cloud.key == key2:
                     point_cloud2 = point_cloud
             assert point_cloud2 is not None
-            _, Tlocal2 = self.get_point_cloud_T(point_cloud2)
+            _, Tlocal2 = self.get_asset_T(point_cloud2)
 
         shift21 = Tlocal2 * Tlocal1.inv()
 
         if isModel1:
             assert(self.chunk.model.key == key1)
-            self.chunk.model.transform(T1.inv() * shift21.inv() * M12 * T1)
+            self.chunk.model.transform = self.chunk.model.transform * T1.inv() * shift21.inv() * M12 * T1
             self.chunk.model = None
         else:
             assert(self.chunk.point_cloud.key == key1)
