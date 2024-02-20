@@ -24,7 +24,7 @@ def colorize_model_vertices_by_overlap():
     vertices = chunk.model.vertices
     nvertices = len(vertices)
 
-    if (nvertices > 0 && chunk.model.vertices[0].color is None):
+    if (nvertices > 0 and chunk.model.vertices[0].color is None):
         raise Exception("Run Tools/Model/Colorize Vertices... before this script")
 
     cameras = [camera for camera in chunk.cameras if camera.transform]
