@@ -1,5 +1,7 @@
 # Colorizes model w.r.t. overlap of cameras (like in report's pdf overlap overview).
 #
+# Script requires model with vertex colors. Run Tools/Model/Colorize Vertices... before using this script.
+#
 # Note that it doesn't respect occlusions and just calculates number of projections from each vertex to all cameras
 # (without any checks for occlusions and distance between the vertex and the camera).
 #
@@ -20,6 +22,11 @@ def colorize_model_vertices_by_overlap():
     doc = Metashape.app.document
     chunk = doc.chunk
     vertices = chunk.model.vertices
+    nvertices = len(vertices)
+
+    if (nvertices > 0 && chunk.model.vertices[0].color is None):
+        raise Exception("Run Tools/Model/Colorize Vertices... before this script")
+
     cameras = [camera for camera in chunk.cameras if camera.transform]
 
     start_time = time.time()
@@ -36,7 +43,6 @@ def colorize_model_vertices_by_overlap():
               (50, 125, 220),
               (50, 50, 220)]
 
-    nvertices = len(vertices)
     print("{} vertices and {} cameras...".format(nvertices, len(cameras)))
 
     logging_step = 10*1000
