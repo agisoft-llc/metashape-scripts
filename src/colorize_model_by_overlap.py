@@ -27,6 +27,9 @@ def colorize_model_vertices_by_overlap():
     if (nvertices > 0 and chunk.model.vertices[0].color is None):
         raise Exception("Run Tools/Model/Colorize Vertices... before this script")
 
+    parent = QApplication.instance().activeWindow()
+    build_texture = QMessageBox.question(parent, "Build texture", "Model vertices will be colored. Build a texture as well?") == QMessageBox.Yes
+    
     cameras = [camera for camera in chunk.cameras if camera.transform]
 
     start_time = time.time()
@@ -73,6 +76,10 @@ def colorize_model_vertices_by_overlap():
     copy_model.bands = ['Red', 'Green', 'Blue']
     tmp_model.clear()
 
+    if (build_texture):
+        chunk.buildUV(mapping_mode = Metashape.GenericMapping, page_count = 1, texture_size = 8192)
+        chunk.buildTexture(texture_size = 8192, source_model = copy_model.key, transfer_texture = False)
+    
     Metashape.app.update()
     print("Script finished in {:.2f} seconds.".format(time.time() - start_time))
 
