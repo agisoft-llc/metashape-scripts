@@ -49,7 +49,7 @@ def colorize_model_vertices_by_altitude():
     chunk = doc.chunk
     num = len(chunk.model.vertices)
 
-    if (num > 0 && chunk.model.vertices[0].color is None):
+    if (num > 0 and chunk.model.vertices[0].color is None):
         raise Exception("Run Tools/Model/Colorize Vertices... before this script")
 
     min, max = 5.1E9, -5.1E9
