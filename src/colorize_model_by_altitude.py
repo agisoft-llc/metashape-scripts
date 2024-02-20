@@ -1,5 +1,7 @@
 # Colorizes model w.r.t. altitude of its vertices (like DEM colors).
 #
+# Script requires model with vertex colors. Run Tools/Model/Colorize Vertices... before using this script.
+#
 # We are grateful to Sébastien Poudroux for this script :)
 #
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
@@ -46,6 +48,9 @@ def colorize_model_vertices_by_altitude():
     doc = Metashape.app.document
     chunk = doc.chunk
     num = len(chunk.model.vertices)
+
+    if (num > 0 && chunk.model.vertices[0].color is None):
+        raise Exception("Run Tools/Model/Colorize Vertices... before this script")
 
     min, max = 5.1E9, -5.1E9
 
