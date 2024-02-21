@@ -50,7 +50,10 @@ def colorize_model_vertices_by_altitude():
     num = len(chunk.model.vertices)
 
     if (num > 0 and chunk.model.vertices[0].color is None):
-        raise Exception("Run Tools/Model/Colorize Vertices... before this script")
+        if (hasattr(chunk.model, "setVertexColors")):
+            chunk.model.setVertexColors()
+        else:
+            raise Exception("Run Tools/Model/Colorize Vertices... before this script")
 
     parent = QApplication.instance().activeWindow()
     build_texture = QMessageBox.question(parent, "Build texture", "Model vertices will be colored. Build a texture as well?") == QMessageBox.Yes
