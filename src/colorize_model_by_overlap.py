@@ -21,11 +21,13 @@ def colorize_model_vertices_by_overlap():
     print("Script started...")
     doc = Metashape.app.document
     chunk = doc.chunk
-    vertices = chunk.model.vertices
-    nvertices = len(vertices)
+    nvertices = len(chunk.model.vertices)
 
     if (nvertices > 0 and chunk.model.vertices[0].color is None):
-        raise Exception("Run Tools/Model/Colorize Vertices... before this script")
+        if (hasattr(chunk.model, "setVertexColors")):
+            chunk.model.setVertexColors()
+        else:
+            raise Exception("Run Tools/Model/Colorize Vertices... before this script")
 
     parent = QApplication.instance().activeWindow()
     build_texture = QMessageBox.question(parent, "Build texture", "Model vertices will be colored. Build a texture as well?") == QMessageBox.Yes
@@ -49,7 +51,7 @@ def colorize_model_vertices_by_overlap():
     print("{} vertices and {} cameras...".format(nvertices, len(cameras)))
 
     logging_step = 10*1000
-    for i, vert in enumerate(vertices):
+    for i, vert in enumerate(chunk.model.vertices):
         coord = vert.coord
         overlap = 0
 
