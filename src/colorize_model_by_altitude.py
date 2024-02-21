@@ -7,6 +7,7 @@
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
 import Metashape
+from PySide2.QtWidgets import QApplication, QMessageBox
 
 # Checking compatibility
 compatible_major_version = "2.1"
