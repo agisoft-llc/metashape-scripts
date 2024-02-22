@@ -356,8 +356,8 @@ class DetectObjectsDlg(QtWidgets.QDialog):
             shape_vertices = shape.geometry.coordinates[0]
             zone_from_world = None
             zone_from_world_best = None
-            for tile_x in range(self.tile_min_x, self.tile_max_x):
-                for tile_y in range(self.tile_min_y, self.tile_max_y):
+            for tile_x in range(self.tile_min_x, self.tile_max_x + 1):
+                for tile_y in range(self.tile_min_y, self.tile_max_y + 1):
                     if (tile_x, tile_y) not in self.tiles_paths:
                         continue
                     to_world = self.tiles_to_world[tile_x, tile_y]
@@ -733,8 +733,8 @@ class DetectObjectsDlg(QtWidgets.QDialog):
         area_overlap_threshold = 0.60
 
         big_tiles = set()
-        for tile_x in range(self.tile_min_x, self.tile_max_x):
-            for tile_y in range(self.tile_min_y, self.tile_max_y):
+        for tile_x in range(self.tile_min_x, self.tile_max_x + 1):
+            for tile_y in range(self.tile_min_y, self.tile_max_y + 1):
                 if (tile_x, tile_y) not in self.tiles_paths:
                     continue
                 big_tile_x, big_tile_y = tile_x // big_tiles_k, tile_y // big_tiles_k
