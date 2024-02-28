@@ -378,7 +378,7 @@ def save_images(params, frame, folder, calibs, tracks, images):
             prjs = (good_prjs if only_good else good_prjs + bad_prjs)
             fout.write(u64(len(prjs)))
             for (pt, size, track_id) in prjs:
-                track_id = (track_id if len(tracks[track_id][0]) != 1 else -1)
+                track_id = (track_id if len(tracks[track_id][0]) == 1 else -1)
                 fout.write(d64(pt.x))
                 fout.write(d64(pt.y))
                 fout.write(u64(track_id))
