@@ -105,6 +105,31 @@ def pandas_append(df, row, ignore_index=False):
         raise RuntimeError("pandas_append: unsupported row type - {}".format(type(row)))
     return result
 
+def getShapeVertices(shape):
+    chunk = Metashape.app.document.chunk
+    if (chunk == None):
+        raise Exception("Null chunk")
+
+    T = chunk.transform.matrix
+    result = []
+
+    if shape.is_attached:
+        assert(len(shape.geometry.coordinates) == 1)
+        for key in shape.geometry.coordinates[0]:
+            for marker in chunk.markers:
+                if marker.key == key:
+                    if (not marker.position):
+                        raise Exception("Invalid shape vertex")
+
+                    point = T.mulp(marker.position)
+                    point = Metashape.CoordinateSystem.transform(point, chunk.world_crs, chunk.shapes.crs)
+                    result.append(point)
+    else:
+        assert(len(shape.geometry.coordinates) == 1)
+        for coord in shape.geometry.coordinates[0]:
+            result.append(coord)
+
+    return result
 
 class DetectObjectsDlg(QtWidgets.QDialog):
 
@@ -183,6 +208,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
 
             if self.chunk.shapes is None:
                 self.chunk.shapes = Metashape.Shapes()
+                self.chunk.shapes.crs = self.chunk.crs
 
             if self.train_on_user_data_enabled:
                 self.train_on_user_data()
@@ -352,8 +378,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
 
         n_train_zone_shapes_out_of_orthomosaic = 0
         for zone_i, shape in enumerate(self.train_zones):
-            assert(len(shape.geometry.coordinates) == 1)
-            shape_vertices = shape.geometry.coordinates[0]
+            shape_vertices = getShapeVertices(shape)
             zone_from_world = None
             zone_from_world_best = None
             for tile_x in range(self.tile_min_x, self.tile_max_x + 1):
@@ -419,8 +444,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
             zone_from, zone_to, zone_from_world = self.train_zones_on_ortho[zone_i]
             annotations = []
             for annotation in self.train_data:
-                assert(len(annotation.geometry.coordinates) == 1)
-                annotation_vertices = annotation.geometry.coordinates[0]
+                annotation_vertices = getShapeVertices(annotation)
                 annotation_from = None
                 annotation_to = None
                 for p in annotation_vertices:
