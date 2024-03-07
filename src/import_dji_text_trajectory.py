@@ -5,6 +5,7 @@
 
 import os
 import struct
+import tempfile
 from pathlib import Path
 
 # Checking compatibility
