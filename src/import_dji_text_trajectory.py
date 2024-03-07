@@ -40,7 +40,7 @@ def import_dji_text():
     doc = Metashape.app.document
     chunk = doc.chunk
 
-    temp = tempfile.NamedTemporaryFile(mode='wb+', suffix='.sbet', delete = False)
+    temp = tempfile.NamedTemporaryFile(mode = 'wb', suffix = '.sbet', delete = False)
     try:
         convert_txt_to_sbet(Metashape.app.getOpenFileName("Select DJI sbet text file", "", "*.txt"), temp)
     except:
@@ -49,7 +49,7 @@ def import_dji_text():
         raise
 
     temp.close()
-    Metashape.app.document.chunk.importTrajectory(temp.name)
+    Metashape.app.document.chunk.importTrajectory(temp.name, format = Metashape.TrajectoryFormatSBET)
     Path(temp.name).unlink()
 
 
