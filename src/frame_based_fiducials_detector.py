@@ -1,3 +1,11 @@
+# How to install:
+# 1. Add this script to auto-launch - https://agisoft.freshdesk.com/support/solutions/articles/31000133123-how-to-run-python-script-automatically-on-metashape-professional-start
+# 2. Restart Metashape
+#
+# How to use:
+# 1. Place fiducials on a few images. We recommend placing on 3 images.
+# 2. Run this script from menu Scripts / Detect Fiducials
+#
 # Script detects scanned aerial image black frame and
 # places fiducials relative to this frame
 # based on manually marked few images sample.
