@@ -76,7 +76,7 @@ if found_major_version != compatible_major_version:
 
 temporary_file = os.path.join(user_packages_location, "temp_links.txt")
 
-requirements_txt = """-f {find_links_file_path}
+requirements_txt = """-f "{find_links_file_path}"
 -f https://download.pytorch.org/whl/torch_stable.html
 albumentations==1.0.3
 deepforest==1.2.4
