@@ -411,7 +411,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                     matrix2x3 = list(map(float, file.readlines()))
                 matrix2x3 = np.array(matrix2x3).reshape(3, 2).T
                 self.tiles_to_world[tile_x, tile_y] = matrix2x3
-            else:
+            elif tile.endswith(".jpg"):
                 self.tiles_paths[tile_x, tile_y] = self.dir_tiles + tile
 
         assert(len(self.tiles_paths) == len(self.tiles_to_world))
