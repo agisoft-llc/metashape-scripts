@@ -65,7 +65,7 @@ import pathlib, shutil, os, time
 from PySide2 import QtGui, QtCore, QtWidgets
 
 import urllib.request
-from modules.pip_auto_install import pip_install, user_packages_location
+from modules.pip_auto_install import pip_install, user_packages_location, _is_already_installed
 
 # Checking compatibility
 compatible_major_version = "2.1"
@@ -74,12 +74,9 @@ if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 
-# install dependencies only if import fails to avoid network requests and repetive installations
 temporary_file = os.path.join(user_packages_location, "temp_links.txt")
-find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
-urllib.request.urlretrieve(find_links_file_url, temporary_file)
 
-pip_install("""-f {find_links_file_path}
+requirements_txt = """-f {find_links_file_path}
 -f https://download.pytorch.org/whl/torch_stable.html
 albumentations==1.0.3
 deepforest==1.2.4
@@ -155,7 +152,13 @@ tzdata==2024.1
 Werkzeug==3.0.1
 xmltodict==0.13.0
 yarl==1.9.4
-zipp==3.18.1""".format(find_links_file_path=temporary_file.replace("\\", "\\\\")))
+zipp==3.18.1""".format(find_links_file_path=temporary_file.replace("\\", "\\\\"))
+
+# Avoid network request if requirements already installed
+if not _is_already_installed(requirements_txt):
+    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
+    urllib.request.urlretrieve(find_links_file_url, temporary_file)
+    pip_install(requirements_txt)
 
 def pandas_append(df, row, ignore_index=False):
     import pandas as pd
