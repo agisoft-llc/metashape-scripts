@@ -64,8 +64,8 @@ import Metashape
 import pathlib, shutil, os, time
 from PySide2 import QtGui, QtCore, QtWidgets
 
-import urllib.request, tempfile
-from modules.pip_auto_install import pip_install
+import urllib.request
+from modules.pip_auto_install import pip_install, user_packages_location
 
 # Checking compatibility
 compatible_major_version = "2.1"
@@ -73,25 +73,89 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-try:
-    import deepforest
-    import torch
-    import pytorch_lightning
-    import albumentations
-except ImportError:
-    # install dependencies only if import fails to avoid network requests and repetive installations
-    temporary_file = tempfile.NamedTemporaryFile(delete=False)
-    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
-    urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
 
-    pip_install("""-f {find_links_file_path}
+# install dependencies only if import fails to avoid network requests and repetive installations
+temporary_file = os.path.join(user_packages_location, "temp_links.txt")
+find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
+urllib.request.urlretrieve(find_links_file_url, temporary_file)
+
+pip_install("""-f {find_links_file_path}
 -f https://download.pytorch.org/whl/torch_stable.html
 albumentations==1.0.3
 deepforest==1.2.4
 pytorch-lightning==1.5.10
 torch==1.9.0+cu111
 torchvision==0.10.0+cu111
-torchaudio===0.9.0""".format(find_links_file_path=temporary_file.name.replace("\\", "\\\\")))
+torchaudio===0.9.0
+
+absl-py==2.1.0
+affine==2.4.0
+aiohttp==3.9.3
+aiosignal==1.3.1
+async-timeout==4.0.3
+attrs==23.2.0
+certifi==2024.2.2
+click==8.1.7
+click-plugins==1.1.1
+cligj==0.7.2
+colorama==0.4.6
+contourpy==1.2.0
+cycler==0.12.1
+fiona==1.9.6
+fonttools==4.50.0
+frozenlist==1.4.1
+fsspec==2024.3.1
+future==1.0.0
+geopandas==0.14.3
+grpcio==1.62.1
+idna==3.6
+imagecodecs==2024.1.1
+imageio==2.34.0
+importlib_metadata==7.1.0
+importlib_resources==6.3.2
+kiwisolver==1.4.5
+lazy_loader==0.3
+lightning-utilities==0.11.0
+Markdown==3.6
+MarkupSafe==2.1.5
+matplotlib==3.8.3
+multidict==6.0.5
+networkx==3.2.1
+numpy==1.26.4
+opencv-python==4.9.0.80
+opencv-python-headless==4.9.0.80
+packaging==24.0
+pandas==2.2.1
+pillow==10.2.0
+progressbar2==4.4.2
+protobuf==5.26.0
+psutil==5.9.8
+pyDeprecate==0.3.1
+pyparsing==3.1.2
+pyproj==3.6.1
+python-dateutil==2.9.0.post0
+python-utils==3.8.2
+pytz==2024.1
+PyYAML==6.0.1
+rasterio==1.3.9
+Rtree==1.2.0
+scikit-image==0.22.0
+scipy==1.12.0
+shapely==2.0.3
+six==1.16.0
+slidingwindow==0.0.14
+snuggs==1.4.7
+tensorboard==2.16.2
+tensorboard-data-server==0.7.2
+tifffile==2024.2.12
+torchmetrics==1.2.1
+tqdm==4.66.2
+typing_extensions==4.10.0
+tzdata==2024.1
+Werkzeug==3.0.1
+xmltodict==0.13.0
+yarl==1.9.4
+zipp==3.18.1""".format(find_links_file_path=temporary_file.replace("\\", "\\\\")))
 
 def pandas_append(df, row, ignore_index=False):
     import pandas as pd
