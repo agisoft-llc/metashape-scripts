@@ -73,7 +73,7 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-
+pathlib.Path(user_packages_location).mkdir(parents=True, exist_ok=True)
 temporary_file = os.path.join(user_packages_location, "temp_links.txt")
 
 requirements_txt = """-f "{find_links_file_path}"
