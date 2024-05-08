@@ -49,7 +49,9 @@ import os
 import shutil
 import struct
 import math
-from PySide2 import QtGui, QtCore, QtWidgets
+from pathlib import Path
+from PySide2 import QtCore, QtGui, QtWidgets
+
 
 # Checking compatibility
 compatible_major_version = "2.1"
@@ -309,6 +311,7 @@ def get_filtered_track_structure(frame, folder, calibs):
 
 
 def save_undistorted_images(params, frame, folder, calibs):
+    print("Exporting images.")
     folder = folder + "images/"
     T = Metashape.Matrix.Diag([1, 1, 1, 1])
 
@@ -333,6 +336,36 @@ def save_undistorted_images(params, frame, folder, calibs):
             img.save(folder + name)
         cnt += 1
     print("Undistorted", cnt, "cameras")
+
+def save_undistorted_masks(params, frame, folder, calibs):
+    print("Exporting masks.")
+    folder = folder + "masks/"
+    if not clean_dir(folder, params.confirm_deletion):
+        print("Masks folder already exists, aborting.")
+        return False
+
+    T = Metashape.Matrix.Diag([1, 1, 1, 1])
+
+    cnt = 0
+    for cam in frame.cameras:
+        if cam.transform is None or cam.sensor is None or not cam.enabled:
+            continue
+        if cam.sensor.key not in calibs:
+            continue
+        (calib0, calib1) = get_calibs(cam, calibs)
+        if calib0 is None:
+            continue
+        if not cam.mask:
+            # Skip if image has no mask assigned.
+            continue
+
+        mask = cam.mask.image().warp(calib0, T, calib1, T)
+        # , 'U8') # Convert image to single channel grayscale.
+        mask = mask.convert("L")
+        name = get_camera_name(cam)
+        mask.save(str(Path(folder + name).with_suffix('.png')))
+        cnt += 1
+    print("Undistorted", cnt, "masks")
 
 def save_cameras(params, folder, calibs):
     use_pinhole_model = params.use_pinhole_model
@@ -416,7 +449,7 @@ def save_points(params, frame, folder, calibs, tracks, images):
                 fout.write(u32(proj_idx))
 
             if not only_good:
-                for (camera_key, proj_idx) in good_prjs:
+                for (camera_key, proj_idx) in bad_prjs:
                     fout.write(u32(camera_key))
                     fout.write(u32(proj_idx + len(images[camera_key][1])))
     print("Saved", num_pts, "points from", len(tracks), "tracks")
@@ -432,6 +465,7 @@ class ExportSceneParams():
         self.use_localframe = True
         self.image_quality = 90
         self.export_images = True
+        self.export_masks = False
         self.confirm_deletion = True
         self.use_pinhole_model = True
         self.only_good = True
@@ -443,6 +477,7 @@ class ExportSceneParams():
         print("Use local coordinate frame:", self.use_localframe)
         print("Image quality:", self.image_quality)
         print("Export images:", self.export_images)
+        print("Export masks:", self.export_masks)
         print("Confirm deletion:", self.confirm_deletion)
         print("Using pinhole model instead of simple_pinhole:", self.use_pinhole_model)
         print("Using only uncropped projections:", self.only_good)
@@ -501,6 +536,8 @@ def export_for_gaussian_splatting(params = ExportSceneParams(), progress = QtWid
 
             if params.export_images:
                 save_undistorted_images(params, frame, folder, calibs)
+            if params.export_masks:
+                save_undistorted_masks(params, frame, folder, calibs)
             save_cameras(params, folder, calibs)
             save_images(params, frame, folder, calibs, tracks, images)
             save_points(params, frame, folder, calibs, tracks, images)
@@ -530,6 +567,7 @@ class CollapsibleGroupBox(QtWidgets.QGroupBox):
             self.maxHeight = self.maximumHeight()
             self.setMaximumHeight(QtGui.QFontMetrics(self.font()).height() + 4)
 
+
 class ExportSceneGUI(QtWidgets.QDialog):
 
     def run_export(self):
@@ -543,6 +581,7 @@ class ExportSceneGUI(QtWidgets.QDialog):
         params.use_localframe = self.locFrameBox.isChecked()
         params.image_quality = self.imgQualSpBox.value()
         params.export_images = self.expImagesBox.isChecked()
+        params.export_masks = self.expMasksBox.isChecked()
         try:
             export_for_gaussian_splatting(params, self.pBar)
         finally:
@@ -618,7 +657,12 @@ class ExportSceneGUI(QtWidgets.QDialog):
         self.expImagesBox = QtWidgets.QCheckBox()
         self.expImagesBox.setChecked(defaults.export_images)
 
+        self.expMasksTxt = QtWidgets.QLabel()
+        self.expMasksTxt.setText("Export masks")
+        self.expMasksTxt.setFixedSize(100, 25)
 
+        self.expMasksBox = QtWidgets.QCheckBox()
+        self.expMasksBox.setChecked(defaults.export_masks)
 
         zcxyToolTip = 'Output camera calibrations will have zero cx and cy\nShould be checked until Gaussian Splatting software considers this parameters\nMay result in information loss during export (large cropping)\nTo mitigate that effect, do step 1.1.0. and check "Adaptive camera model fitting" at 1.2. of the script description'
         self.zcxyTxt.setToolTip(zcxyToolTip)
@@ -636,6 +680,9 @@ class ExportSceneGUI(QtWidgets.QDialog):
         self.expImagesTxt.setToolTip(expImagesToolTip)
         self.expImagesBox.setToolTip(expImagesToolTip)
 
+        expImagesToolTip = "You can enable export of the undistorted masks"
+        self.expMasksTxt.setToolTip(expImagesToolTip)
+        self.expMasksBox.setToolTip(expImagesToolTip)
 
         general_layout = QtWidgets.QGridLayout()
         general_layout.setSpacing(9)
@@ -656,6 +703,9 @@ class ExportSceneGUI(QtWidgets.QDialog):
         advanced_layout.setSpacing(9)
         advanced_layout.addWidget(self.expImagesTxt, 0, 0)
         advanced_layout.addWidget(self.expImagesBox, 0, 1)
+        advanced_layout.setSpacing(9)
+        advanced_layout.addWidget(self.expMasksTxt, 1, 0)
+        advanced_layout.addWidget(self.expMasksBox, 1, 1)
 
         self.gbGeneral = QtWidgets.QGroupBox()
         self.gbGeneral.setLayout(general_layout)
@@ -677,7 +727,7 @@ class ExportSceneGUI(QtWidgets.QDialog):
         layout.addWidget(self.btnQuit, 3, 2)
         self.setLayout(layout)
 
-        self.buttons = [self.btnP1, self.btnQuit, self.radioBtn_allC, self.radioBtn_selC, self.radioBtn_allF, self.radioBtn_selF, self.zcxyBox, self.locFrameBox, self.imgQualSpBox, self.expImagesBox]
+        self.buttons = [self.btnP1, self.btnQuit, self.radioBtn_allC, self.radioBtn_selC, self.radioBtn_allF, self.radioBtn_selF, self.zcxyBox, self.locFrameBox, self.imgQualSpBox, self.expImagesBox, self.expMasksBox]
 
         proc = lambda : self.run_export()
 
