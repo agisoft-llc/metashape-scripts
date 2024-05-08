@@ -416,7 +416,7 @@ def save_points(params, frame, folder, calibs, tracks, images):
                 fout.write(u32(proj_idx))
 
             if not only_good:
-                for (camera_key, proj_idx) in good_prjs:
+                for (camera_key, proj_idx) in bad_prjs:
                     fout.write(u32(camera_key))
                     fout.write(u32(proj_idx + len(images[camera_key][1])))
     print("Saved", num_pts, "points from", len(tracks), "tracks")
