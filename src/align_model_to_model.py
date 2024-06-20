@@ -19,7 +19,7 @@ import os, copy, time, itertools, tempfile
 from pathlib import Path
 
 import urllib.request, tempfile
-from modules.pip_auto_install import pip_install
+from modules.pip_auto_install import pip_install, user_packages_location, _is_already_installed
 
 # Checking compatibility
 compatible_major_version = "2.1"
@@ -27,18 +27,76 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-try:
-    import open3d
-    import pyhull
-except ImportError:
-    # install dependencies only if import fails to avoid network requests and repetive installations
-    temporary_file = tempfile.NamedTemporaryFile(delete=False)
-    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
-    urllib.request.urlretrieve(find_links_file_url, temporary_file.name)
 
-    pip_install("""-f {find_links_file_path}
-open3d == 0.16.0
-pyhull == 2015.2.1""".format(find_links_file_path=temporary_file.name.replace("\\", "\\\\")))
+Path(user_packages_location).mkdir(parents=True, exist_ok=True)
+temporary_file = os.path.join(user_packages_location, "temp_links.html")
+
+requirements_txt = """-f "{find_links_file_path}"
+open3d==0.16.0
+pyhull==2015.2.1
+numpy==1.26.4
+
+asttokens==2.4.1
+attrs==23.2.0
+blinker==1.8.2
+certifi==2024.2.2
+charset-normalizer==3.3.2
+click==8.1.7
+colorama==0.4.6
+comm==0.2.2
+ConfigArgParse==1.7
+dash==2.17.1
+dash-core-components==2.0.0
+dash-html-components==2.0.0
+dash-table==5.0.0
+decorator==5.1.1
+exceptiongroup==1.2.1
+executing==2.0.1
+fastjsonschema==2.20.0
+Flask==3.0.3
+idna==3.6
+importlib_metadata==7.1.0
+ipython==8.18.1
+ipywidgets==8.1.3
+itsdangerous==2.2.0
+jedi==0.19.1
+Jinja2==3.1.4
+jsonschema==4.22.0
+jsonschema-specifications==2023.12.1
+jupyter_core==5.7.2
+jupyterlab_widgets==3.0.11
+MarkupSafe==2.1.5
+matplotlib-inline==0.1.7
+nbformat==5.5.0
+nest-asyncio==1.6.0
+packaging==24.0
+parso==0.8.4
+platformdirs==4.2.2
+plotly==5.22.0
+prompt_toolkit==3.0.47
+pure-eval==0.2.2
+Pygments==2.18.0
+pywin32==306
+referencing==0.35.1
+requests==2.32.3
+retrying==1.3.4
+rpds-py==0.18.1
+six==1.16.0
+stack-data==0.6.3
+tenacity==8.4.1
+traitlets==5.14.3
+typing_extensions==4.10.0
+urllib3==2.2.2
+wcwidth==0.2.13
+Werkzeug==3.0.1
+widgetsnbextension==4.0.11
+zipp==3.18.1""".format(find_links_file_path=temporary_file)
+
+# Avoid network request if requirements already installed
+if not _is_already_installed(requirements_txt):
+    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.html"
+    urllib.request.urlretrieve(find_links_file_url, temporary_file)
+    pip_install(requirements_txt)
 
 import open3d as o3d
 from pyhull.convex_hull import ConvexHull
