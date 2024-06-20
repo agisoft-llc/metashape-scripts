@@ -24,7 +24,7 @@
 #
 # How to use:
 #
-# 1. Open a dataset with an orthomosaic with at least 10 cm/pix resolution (i.e. GSD should be <= 10 cm/pix), 10 cm/pix or 5 cm/pix are recommended
+# 1. Open a dataset with an orthomosaic with at least 10 cm/pix resolution (i.e. GSD should be <= 10 cm/pix), 10 cm/pix or 5 cm/pix are recommended. Note that path should not include non-ascii characters.
 # 2. Create a shape layer 'Train zones' with at least one axis aligned bounding box (using 'Draw Rectangle') specifing the training zone
 #    (each of its sides should be around 50-60 meters), it is recommended to specify color for shapes of this layer - red for example
 # 3. Create a shape layer 'Train data' with all trees (or all cars) in train zones specified as axis aligned bounding box (using 'Draw Rectangle'),
@@ -74,7 +74,7 @@ if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
 pathlib.Path(user_packages_location).mkdir(parents=True, exist_ok=True)
-temporary_file = os.path.join(user_packages_location, "temp_links.txt")
+temporary_file = os.path.join(user_packages_location, "temp_links.html")
 
 requirements_txt = """-f "{find_links_file_path}"
 -f https://download.pytorch.org/whl/torch_stable.html
@@ -152,11 +152,11 @@ tzdata==2024.1
 Werkzeug==3.0.1
 xmltodict==0.13.0
 yarl==1.9.4
-zipp==3.18.1""".format(find_links_file_path=temporary_file.replace("\\", "\\\\"))
+zipp==3.18.1""".format(find_links_file_path=temporary_file)
 
 # Avoid network request if requirements already installed
 if not _is_already_installed(requirements_txt):
-    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.txt"
+    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.html"
     urllib.request.urlretrieve(find_links_file_url, temporary_file)
     pip_install(requirements_txt)
 
