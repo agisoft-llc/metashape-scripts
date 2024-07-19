@@ -84,11 +84,7 @@ def matrix_to_quat(m):
 
 
 def get_camera_name(cam):
-    name = cam.label
-    ext = os.path.splitext(name)
-    if (len(ext[1]) == 0):
-        name = ext[0] + os.path.splitext(cam.photo.path)[1]
-    return name
+    return os.path.basename(cam.photo.path)
 
 def clean_dir(folder, confirm_deletion):
     if os.path.exists(folder):
