@@ -243,7 +243,7 @@ def get_valid_calib_region(calib):
     new_h = bottom - top
 
     if (new_w != w or new_h != h):
-        print("Cropped initial calibration", str(w) + "x" + str(h), "->", str(new_w) + "x" + str(new_h))
+        print("Cropped initial calibration due to high distortion", str(w) + "x" + str(h), "->", str(new_w) + "x" + str(new_h))
 
     return (top, right, bottom, left)
     
