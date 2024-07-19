@@ -145,60 +145,207 @@ def get_chunk_dirs(folder, params):
         shutil.rmtree(name)
     return chunk_names
 
+def get_valid_calib_region(calib):
+    w = calib.width
+    h = calib.height
+
+    left = math.floor(calib.cx + w / 2)
+    right = math.floor(calib.cx + w / 2)
+    top = math.floor(calib.cy + h / 2)
+    bottom = math.floor(calib.cy + h / 2)
+
+    left_set = False
+    right_set = False
+    top_set = False
+    bottom_set = False
+
+    max_dim = max(w, h)
+    max_tan = math.hypot(w, h) / calib.f
+
+    step_x = 1
+    step_y = 1
+
+    if w > h:
+        step_y /= min(1.2, (w / h))
+    else:
+        step_x /= min(1.2, (h / w))
+
+    prev_pt = [[None, None], [None, None]]
+
+    for r in range(max_dim):
+        next_top = top if top_set else math.floor(calib.cy + h / 2 - r * step_y)
+        next_bottom = bottom if bottom_set else math.floor(calib.cy + h / 2 + r * step_y)
+        next_left = left if left_set else math.floor(calib.cx + w / 2 - r * step_x)
+        next_right = right if right_set else math.floor(calib.cx + w / 2 + r * step_x)
+
+        next_top = max(next_top, 0)
+        next_left = max(next_left, 0)
+        next_right = min(next_right, w)
+        next_bottom = min(next_bottom, h)
+
+        for v in range(2):
+            for u in range(2):
+                if left_set and top_set and right_set and bottom_set:
+                    break
+
+                if u == 0 and left_set:
+                    continue
+                if v == 0 and top_set:
+                    continue
+                if u == 1 and right_set:
+                    continue
+                if v == 1 and bottom_set:
+                    continue
+
+                corner = Metashape.Vector([next_right if u else next_left, next_bottom if v else next_top])
+                corner.x += 0.5
+                corner.y += 0.5
+
+                pt = calib.unproject(corner)
+                pt = Metashape.Vector([pt.x / pt.z, pt.y / pt.z])
+
+                if prev_pt[v][u]:
+                    dif = pt - prev_pt[v][u]
+
+                    if (pt.norm() < max_tan and dif * Metashape.Vector([step_x * (1 if u else -1), step_y * (1 if v else -1)]) > 0):
+                        prev_pt[v][u] = pt
+                    else:
+                        if u:
+                            right_set = True
+                        else:
+                            left_set = True
+
+                        if v:
+                            bottom_set = True
+                        else:
+                            top_set = True
+                else:
+                    prev_pt[v][u] = pt
+
+        if not left_set:
+            left = next_left
+        if not top_set:
+            top = next_top
+        if not right_set:
+            right = next_right
+        if not bottom_set:
+            bottom = next_bottom
+
+    right += 1
+    bottom += 1
+
+    left = max(left, 0)
+    right = min(right, w)
+    top = max(top, 0)
+    bottom = min(bottom, h)
+
+    new_w = right - left
+    new_h = bottom - top
+
+    if (new_w != w or new_h != h):
+        print("Cropped initial calibration", str(w) + "x" + str(h), "->", str(new_w) + "x" + str(new_h))
+
+    return (top, right, bottom, left)
+    
+def rotate_vector(vec, axis, angle):
+    axis = axis.normalized()
+    collinear = axis * (vec * axis)
+    orthogonal0 = vec - collinear
+    orthogonal1 = Metashape.Vector.cross(axis, orthogonal0)
+    return collinear + orthogonal0 * math.cos(angle) + orthogonal1 * math.sin(angle)
+
+def axis_magnitude_rotation(axis):
+    angle = axis.norm()
+    axis = axis.normalized()
+    x = Metashape.Vector((1, 0, 0))
+    y = Metashape.Vector((0, 1, 0))
+    z = Metashape.Vector((0, 0, 1))
+    return Metashape.Matrix((rotate_vector(x, axis, -angle), rotate_vector(y, axis, -angle), rotate_vector(z, axis, -angle)))
+
+def compute_size(top, right, bottom, left, T1):
+    T1_inv = T1.inv()
+
+    tl = T1_inv.mulp(Metashape.Vector([left, top, 1]))
+    tr = T1_inv.mulp(Metashape.Vector([right, top, 1]))
+    bl = T1_inv.mulp(Metashape.Vector([left, bottom, 1]))
+    br = T1_inv.mulp(Metashape.Vector([right, bottom, 1]))
+
+
+    halfwl = min(-tl.x / tl.z, -bl.x / bl.z)
+    halfwr = min(tr.x / tr.z, br.x / br.z)
+    halfht = min(-tr.y / tr.z, -tl.y / tl.z)
+    halfhb = min(br.y / br.z, bl.y / bl.z)
+
+    return (halfht, halfwr, halfhb, halfwl)
+
 def compute_undistorted_calib(sensor, zero_cxy):
     border = 0 # in pixels, can be increased if black margins are on the undistorted images
 
-    if sensor.type != Metashape.Sensor.Type.Frame:
-        return Metashape.Calibration()
+    if sensor.type != Metashape.Sensor.Type.Frame and sensor.type != Metashape.Sensor.Type.Fisheye:
+        return (Metashape.Calibration(), Metashape.Matrix.Diag([1, 1, 1, 1]))
 
     calib_initial = sensor.calibration
     w = calib_initial.width
     h = calib_initial.height
+    f = calib_initial.f
 
-    calib = Metashape.Calibration()
-    calib.f = calib_initial.f
-    calib.width = w
-    calib.height = h
+    (reg_top, reg_right, reg_bottom, reg_left) = get_valid_calib_region(calib_initial)
 
     left = -float("inf")
     right = float("inf")
     top = -float("inf")
     bottom = float("inf")
 
-    for i in range(h):
-        pt = calib.project(calib_initial.unproject(Metashape.Vector([0.5, i + 0.5])))
-        left = max(left, pt.x)
-        pt = calib.project(calib_initial.unproject(Metashape.Vector([w - 0.5, i + 0.5])))
-        right = min(right, pt.x)
-    for i in range(w):
-        pt = calib.project(calib_initial.unproject(Metashape.Vector([i + 0.5, 0.5])))
-        top = max(top, pt.y)
-        pt = calib.project(calib_initial.unproject(Metashape.Vector([i + 0.5, h - 0.5])))
-        bottom = min(bottom, pt.y)
+    for i in range(reg_top, reg_bottom):
+        pt = calib_initial.unproject(Metashape.Vector([reg_left + 0.5, i + 0.5]))
+        left = max(left, pt.x / pt.z)
+        pt = calib_initial.unproject(Metashape.Vector([reg_right - 0.5, i + 0.5]))
+        right = min(right, pt.x / pt.z)
+    for i in range(reg_left, reg_right):
+        pt = calib_initial.unproject(Metashape.Vector([i + 0.5, reg_top + 0.5]))
+        top = max(top, pt.y / pt.z)
+        pt = calib_initial.unproject(Metashape.Vector([i + 0.5, reg_bottom - 0.5]))
+        bottom = min(bottom, pt.y / pt.z)
 
-    left = math.ceil(left) + border
-    right = math.floor(right) - border
-    top = math.ceil(top) + border
-    bottom = math.floor(bottom) - border
+    T1 = Metashape.Matrix.Diag([1, 1, 1, 1])
+    if zero_cxy:
+        left_ang = math.atan(left)
+        right_ang = math.atan(right)
+        top_ang = math.atan(top)
+        bottom_ang = math.atan(bottom)
+
+        rotation_vec = Metashape.Vector([math.tan((left_ang + right_ang) / 2), math.tan((top_ang + bottom_ang) / 2), 1]).normalized()
+        rotation_vec = Metashape.Vector.cross(Metashape.Vector((0, 0, 1)), rotation_vec)
+        T1 = Metashape.Matrix.Rotation(axis_magnitude_rotation(rotation_vec))
+
+    (halfht, halfwr, halfhb, halfwl) = compute_size(top, right, bottom, left, T1)
+
+    halfht = math.floor(f * halfht)
+    halfwr = math.floor(f * halfwr)
+    halfhb = math.floor(f * halfhb)
+    halfwl = math.floor(f * halfwl)
+
+    halfw = min(halfwl, halfwr)
+    halfh = min(halfht, halfhb)
 
     if zero_cxy:
-        new_w = min(2 * right - w, w - 2 * left)
-        new_h = min(2 * bottom - h, h - 2 * top)
-        new_w -= (new_w + w) % 2
-        new_h -= (new_h + h) % 2
-        left = (w - new_w) // 2
-        right = (w + new_w) // 2
-        top = (h - new_h) // 2
-        bottom = (h + new_h) // 2
+        halfwl = halfw
+        halfwr = halfw
+        halfht = halfh
+        halfhb = halfh
 
-    calib.width = max(0, right - left)
-    calib.height = max(0, bottom - top)
-    calib.cx = -0.5 * (right + left - w)
-    calib.cy = -0.5 * (top + bottom - h)
+    max_dim = max(w, h)
 
-    return calib
+    calib = Metashape.Calibration()
+    calib.f = f
+    calib.width = min(math.floor(max_dim * 1.2), math.floor(halfwl + halfwr) - 2 * border)
+    calib.height = min(math.floor(max_dim * 1.2), math.floor(halfht + halfhb) - 2 * border)
+    calib.cx = halfwl - (halfwl + halfwr) / 2
+    calib.cy = halfht - (halfht + halfhb) / 2
 
-def check_undistorted_calib(sensor, calib):
+    return (calib, T1)
+
+def check_undistorted_calib(sensor, calib, T1):
     border = 0 # in pixels, can be increased if black margins are on the undistorted images
 
     calib_initial = sensor.calibration
@@ -211,14 +358,14 @@ def check_undistorted_calib(sensor, calib):
     bottom = -float("inf")
 
     for i in range(h):
-        pt = calib_initial.project(calib.unproject(Metashape.Vector([0.5, i + 0.5])))
+        pt = calib_initial.project(T1.mulp(calib.unproject(Metashape.Vector([0.5, i + 0.5]))))
         left = min(left, pt.x)
-        pt = calib_initial.project(calib.unproject(Metashape.Vector([w - 0.5, i + 0.5])))
+        pt = calib_initial.project(T1.mulp(calib.unproject(Metashape.Vector([w - 0.5, i + 0.5]))))
         right = max(right, pt.x)
     for i in range(w):
-        pt = calib_initial.project(calib.unproject(Metashape.Vector([i + 0.5, 0.5])))
+        pt = calib_initial.project(T1.mulp(calib.unproject(Metashape.Vector([i + 0.5, 0.5]))))
         top = min(top, pt.y)
-        pt = calib_initial.project(calib.unproject(Metashape.Vector([i + 0.5, h - 0.5])))
+        pt = calib_initial.project(T1.mulp(calib.unproject(Metashape.Vector([i + 0.5, h - 0.5]))))
         bottom = max(bottom, pt.y)
 
     print(left, right, top, bottom)
@@ -238,28 +385,29 @@ def get_coord_transform(frame, use_localframe):
     fr_to_loc = gc_to_loc * fr_to_gc
     return (Metashape.Matrix.Translation(-fr_to_loc.mulp(frame.region.center)) * fr_to_loc)
 
-
-
 def compute_undistorted_calibs(frame, zero_cxy):
-    print("Calibrations:")
-    calibs = {} # { sensor_key: ( sensor, undistorted calibration ) }
+    calibs = {} # { sensor_key: ( sensor, undistorted calibration, undistorted camera transform ) }
     for sensor in frame.sensors:
-        calib = compute_undistorted_calib(sensor, zero_cxy)
+        (calib, T1) = compute_undistorted_calib(sensor, zero_cxy)
+
         if (calib.width == 0 or calib.height == 0):
             continue
-        calibs[sensor.key] = (sensor, calib)
+        calibs[sensor.key] = (sensor, calib, T1)
+        #check_undistorted_calib(sensor, calib, T1)
+
+    print("Calibrations:")
+    for (s_key, (sensor, calib, T1)) in calibs.items():
         print(sensor.key, calib.f, calib.width, calib.height, calib.cx, calib.cy)
-        #check_undistorted_calib(sensor, calib)
 
     return calibs
 
 def get_calibs(camera, calibs):
     s_key = camera.sensor.key
     if s_key not in calibs:
-        cause = "unsupported" if camera.sensor.type != Metashape.Sensor.Type.Frame else "cropped"
+        cause = "unsupported" if (camera.sensor.type != Metashape.Sensor.Type.Frame and camera.sensor.type != Metashape.Sensor.Type.Fisheye) else "cropped"
         print("Camera " + camera.label + " (key = " + str(camera.key) + ") has " + cause + " sensor (key = " + str(s_key) + ")")
-        return (None, None)
-    return (calibs[s_key][0].calibration, calibs[s_key][1])
+        return (None, None, None)
+    return (calibs[s_key][0].calibration, calibs[s_key][1], calibs[s_key][2])
 
 
 def get_filtered_track_structure(frame, folder, calibs):
@@ -269,10 +417,18 @@ def get_filtered_track_structure(frame, folder, calibs):
 
     tracks = {} # { track_id: [ point indices, good projections, bad projections ] }; projection = ( camera_key, projection_idx )
     images = {} # { camera_key: [ camera, good projections, bad projections ] }; projection = ( undistored pt in pixels, size, track_id )
+
+    for (i, pt) in enumerate(tie_points.points):
+        track_id = pt.track_id
+        if track_id not in tracks:
+            tracks[track_id] = [[], [], []]
+
+        tracks[track_id][0].append(i)
+
     for cam in frame.cameras:
         if cam.transform is None or cam.sensor is None or not cam.enabled:
             continue
-        (calib0, calib1) = get_calibs(cam, calibs)
+        (calib0, calib1, T1) = get_calibs(cam, calibs)
         if calib0 is None:
             continue
 
@@ -284,8 +440,12 @@ def get_filtered_track_structure(frame, folder, calibs):
             if track_id not in tracks:
                 tracks[track_id] = [[], [], []]
 
-            pt = calib1.project(calib0.unproject(proj.coord))
-            good = (0 <= pt.x and pt.x < calib1.width and 0 <= pt.y and pt.y < calib1.height)
+            pt = calib1.project(T1.mulp(calib0.unproject(proj.coord)))
+
+            good = False
+            if (pt is not None):
+                good = (0 <= pt.x and pt.x < calib1.width and 0 <= pt.y and pt.y < calib1.height)
+
             place = (1 if good else 2)
 
             if not good:
@@ -297,18 +457,8 @@ def get_filtered_track_structure(frame, folder, calibs):
 
         images[cam.key] = camera_entry
 
-    for (i, pt) in enumerate(tie_points.points):
-        track_id = pt.track_id
-        if track_id not in tracks:
-            tracks[track_id] = [[], [], []]
-
-        tracks[track_id][0].append(i)
-
     print("Found", cnt_cropped, "cropped projections")
     return (tracks, images)
-
-
-
 
 def save_undistorted_images(params, frame, folder, calibs):
     print("Exporting images.")
@@ -321,11 +471,11 @@ def save_undistorted_images(params, frame, folder, calibs):
             continue
         if cam.sensor.key not in calibs:
             continue
-        (calib0, calib1) = get_calibs(cam, calibs)
+        (calib0, calib1, T1) = get_calibs(cam, calibs)
         if calib0 is None:
             continue
 
-        img = cam.image().warp(calib0, T, calib1, T)
+        img = cam.image().warp(calib0, T, calib1, T1)
         name = get_camera_name(cam)
         ext = os.path.splitext(name)[1]
         if ext.lower() in [".jpg", ".jpeg"]:
@@ -352,14 +502,14 @@ def save_undistorted_masks(params, frame, folder, calibs):
             continue
         if cam.sensor.key not in calibs:
             continue
-        (calib0, calib1) = get_calibs(cam, calibs)
+        (calib0, calib1, T1) = get_calibs(cam, calibs)
         if calib0 is None:
             continue
         if not cam.mask:
             # Skip if image has no mask assigned.
             continue
 
-        mask = cam.mask.image().warp(calib0, T, calib1, T)
+        mask = cam.mask.image().warp(calib0, T, calib1, T1)
         # , 'U8') # Convert image to single channel grayscale.
         mask = mask.convert("L")
         name = get_camera_name(cam)
@@ -371,7 +521,7 @@ def save_cameras(params, folder, calibs):
     use_pinhole_model = params.use_pinhole_model
     with open(folder + "sparse/0/cameras.bin", "wb") as fout:
         fout.write(u64(len(calibs)))
-        for (s_key, (sensor, calib)) in calibs.items():
+        for (s_key, (sensor, calib, T1)) in calibs.items():
             fout.write(u32(s_key))
             fout.write(u32(1 if use_pinhole_model else 0))
             fout.write(u64(calib.width))
@@ -393,7 +543,8 @@ def save_images(params, frame, folder, calibs, tracks, images):
     with open(folder + "sparse/0/images.bin", "wb") as fout:
         fout.write(u64(len(images)))
         for (cam_key, [camera, good_prjs, bad_prjs]) in images.items():
-            transform = T_shift * camera.transform
+            (calib0, calib1, T1) = get_calibs(camera, calibs)
+            transform = T_shift * camera.transform * T1
             R = transform.rotation().inv()
             T = -1 * (R * transform.translation())
             Q = matrix_to_quat(R)
