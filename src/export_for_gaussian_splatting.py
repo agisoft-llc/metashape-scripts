@@ -166,8 +166,6 @@ def get_valid_calib_region(calib):
     else:
         step_x /= min(1.2, (h / w))
 
-    prev_pt = [[None, None], [None, None]]
-
     for r in range(max_dim):
         next_top = top if top_set else math.floor(calib.cy + h / 2 - r * step_y)
         next_bottom = bottom if bottom_set else math.floor(calib.cy + h / 2 + r * step_y)
@@ -197,26 +195,29 @@ def get_valid_calib_region(calib):
                 corner.x += 0.5
                 corner.y += 0.5
 
+                step = Metashape.Vector([step_x if u else -step_x, step_y if v else -step_y])
+
+                prev_corner = Metashape.Vector(corner)
+                prev_corner -= step
+
                 pt = calib.unproject(corner)
                 pt = Metashape.Vector([pt.x / pt.z, pt.y / pt.z])
 
-                if prev_pt[v][u]:
-                    dif = pt - prev_pt[v][u]
+                prev_pt = calib.unproject(prev_corner)
+                prev_pt = Metashape.Vector([prev_pt.x / prev_pt.z, prev_pt.y / prev_pt.z])
 
-                    if (pt.norm() < max_tan and dif * Metashape.Vector([step_x * (1 if u else -1), step_y * (1 if v else -1)]) > 0):
-                        prev_pt[v][u] = pt
+                dif = pt - prev_pt
+
+                if (pt.norm() > max_tan or dif * step <= 0):
+                    if u:
+                        right_set = True
                     else:
-                        if u:
-                            right_set = True
-                        else:
-                            left_set = True
+                        left_set = True
 
-                        if v:
-                            bottom_set = True
-                        else:
-                            top_set = True
-                else:
-                    prev_pt[v][u] = pt
+                    if v:
+                        bottom_set = True
+                    else:
+                        top_set = True
 
         if not left_set:
             left = next_left
