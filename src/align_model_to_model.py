@@ -104,7 +104,7 @@ if not _is_already_installed(requirements_txt):
     old_path = os.environ.get("C_INCLUDE_PATH")
     if old_path:
         new_path = old_path + ":" + new_path
-    os.environ["C_INCLUDE_PATH"] += new_path
+    os.environ["C_INCLUDE_PATH"] = new_path
     try:
         pip_install(requirements_txt)
     finally:
