@@ -100,7 +100,11 @@ if not _is_already_installed(requirements_txt):
     python_include_path = str(Path(sys.executable).parent.parent / "include" / "python{}.{}".format(sys.version_info[0], sys.version_info[1]))
 
     old_environ = dict(os.environ)
-    os.environ["C_INCLUDE_PATH"] += ":" + python_include_path # required for building pyhull wheel
+    new_path = python_include_path # required for building pyhull wheel
+    old_path = os.environ.get("C_INCLUDE_PATH")
+    if old_path:
+        new_path = old_path + ":" + new_path
+    os.environ["C_INCLUDE_PATH"] += new_path
     try:
         pip_install(requirements_txt)
     finally:
