@@ -15,7 +15,7 @@
 import Metashape
 from PySide2 import QtGui, QtCore, QtWidgets
 
-import os, copy, time, itertools, tempfile
+import os, sys, copy, time, itertools, tempfile
 from pathlib import Path
 
 import urllib.request, tempfile
@@ -96,7 +96,16 @@ zipp==3.18.1""".format(find_links_file_path=temporary_file)
 if not _is_already_installed(requirements_txt):
     find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.html"
     urllib.request.urlretrieve(find_links_file_url, temporary_file)
-    pip_install(requirements_txt)
+    
+    python_include_path = str(Path(sys.executable).parent.parent / "include" / "python{}.{}".format(sys.version_info[0], sys.version_info[1]))
+
+    old_environ = dict(os.environ)
+    os.environ["C_INCLUDE_PATH"] += ":" + python_include_path # required for building pyhull wheel
+    try:
+        pip_install(requirements_txt)
+    finally:
+        os.environ.clear()
+        os.environ.update(old_environ)
 
 import open3d as o3d
 from pyhull.convex_hull import ConvexHull
