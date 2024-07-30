@@ -76,7 +76,7 @@ plotly==5.22.0
 prompt_toolkit==3.0.47
 pure-eval==0.2.2
 Pygments==2.18.0
-pywin32==306
+pywin32==306; sys_platform == 'win32'
 referencing==0.35.1
 requests==2.32.3
 retrying==1.3.4
