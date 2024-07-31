@@ -32,7 +32,7 @@ Path(user_packages_location).mkdir(parents=True, exist_ok=True)
 temporary_file = os.path.join(user_packages_location, "temp_links.html")
 
 requirements_txt = """-f "{find_links_file_path}"
-open3d==0.16.0
+open3d==0.18.0
 pyhull==2015.2.1
 numpy==1.26.4
 
@@ -67,7 +67,7 @@ jupyter_core==5.7.2
 jupyterlab_widgets==3.0.11
 MarkupSafe==2.1.5
 matplotlib-inline==0.1.7
-nbformat==5.5.0
+nbformat==5.7.0
 nest-asyncio==1.6.0
 packaging==24.0
 parso==0.8.4
