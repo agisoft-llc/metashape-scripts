@@ -167,6 +167,9 @@ def get_valid_calib_region(calib):
         step_x /= min(1.2, (h / w))
 
     for r in range(max_dim):
+        if left_set and top_set and right_set and bottom_set:
+            break
+
         next_top = top if top_set else math.floor(calib.cy + h / 2 - r * step_y)
         next_bottom = bottom if bottom_set else math.floor(calib.cy + h / 2 + r * step_y)
         next_left = left if left_set else math.floor(calib.cx + w / 2 - r * step_x)
@@ -179,8 +182,6 @@ def get_valid_calib_region(calib):
 
         for v in range(2):
             for u in range(2):
-                if left_set and top_set and right_set and bottom_set:
-                    break
 
                 if u == 0 and left_set:
                     continue
@@ -201,6 +202,12 @@ def get_valid_calib_region(calib):
                 prev_corner -= step
 
                 pt = calib.unproject(corner)
+                corner_reproject = calib.project(pt)
+
+                bad_calib = False
+                if not corner_reproject or (corner_reproject - corner).norm() > 10:
+                    bad_calib = True
+
                 pt = Metashape.Vector([pt.x / pt.z, pt.y / pt.z])
 
                 prev_pt = calib.unproject(prev_corner)
@@ -208,7 +215,7 @@ def get_valid_calib_region(calib):
 
                 dif = pt - prev_pt
 
-                if (pt.norm() > max_tan or dif * step <= 0):
+                if (pt.norm() > max_tan or dif * step <= 0 or bad_calib):
                     if u:
                         right_set = True
                     else:
@@ -266,7 +273,6 @@ def compute_size(top, right, bottom, left, T1):
     tr = T1_inv.mulp(Metashape.Vector([right, top, 1]))
     bl = T1_inv.mulp(Metashape.Vector([left, bottom, 1]))
     br = T1_inv.mulp(Metashape.Vector([right, bottom, 1]))
-
 
     halfwl = min(-tl.x / tl.z, -bl.x / bl.z)
     halfwr = min(tr.x / tr.z, br.x / br.z)
@@ -680,13 +686,15 @@ def export_for_gaussian_splatting(params = ExportSceneParams(), progress = QtWid
                 return
 
             calibs = compute_undistorted_calibs(frame, params.zero_cxy)
-            (tracks, images) = get_filtered_track_structure(frame, folder, calibs)
 
             if params.export_images:
                 save_undistorted_images(params, frame, folder, calibs)
             if params.export_masks:
                 save_undistorted_masks(params, frame, folder, calibs)
             save_cameras(params, folder, calibs)
+
+
+            (tracks, images) = get_filtered_track_structure(frame, folder, calibs)
             save_images(params, frame, folder, calibs, tracks, images)
             save_points(params, frame, folder, calibs, tracks, images)
 
