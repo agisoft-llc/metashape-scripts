@@ -177,8 +177,8 @@ def get_valid_calib_region(calib):
 
         next_top = max(next_top, 0)
         next_left = max(next_left, 0)
-        next_right = min(next_right, w)
-        next_bottom = min(next_bottom, h)
+        next_right = min(next_right, w - 1)
+        next_bottom = min(next_bottom, h - 1)
 
         for v in range(2):
             for u in range(2):
@@ -238,10 +238,19 @@ def get_valid_calib_region(calib):
     right += 1
     bottom += 1
 
-    left = max(left, 0)
-    right = min(right, w)
-    top = max(top, 0)
-    bottom = min(bottom, h)
+    new_w = right - left
+    new_h = bottom - top
+
+    border = math.ceil(0.01 * min(new_w, new_h))
+
+    if left_set:
+        left += border
+    if right_set:
+        right -= border
+    if top_set:
+        top += border
+    if bottom_set:
+        bottom -= border
 
     new_w = right - left
     new_h = bottom - top
