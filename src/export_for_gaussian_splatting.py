@@ -82,9 +82,8 @@ def matrix_to_quat(m):
         s = 2 * math.sqrt(1 + m[2, 2] - m[0, 0] - m[1, 1])
         return Metashape.Vector([(m[0, 2] + m[2, 0]) / s, (m[1, 2] + m[2, 1]) / s, 0.25 * s, (m[1, 0] - m[0, 1]) / s])
 
-
 def get_camera_name(cam):
-    return os.path.basename(cam.photo.path)
+    return ("{:05d}".format(cam.key)) + "_" + os.path.basename(cam.photo.path)
 
 def clean_dir(folder, confirm_deletion):
     if os.path.exists(folder):
@@ -140,6 +139,12 @@ def get_chunk_dirs(folder, params):
     for name in existed:
         shutil.rmtree(name)
     return chunk_names
+
+def calib_valid(calib, point):
+    reproj = calib.project(calib.unproject(point))
+    if not reproj:
+        return False
+    return (reproj - point).norm() < 1.0
 
 def get_valid_calib_region(calib):
     w = calib.width
@@ -202,11 +207,6 @@ def get_valid_calib_region(calib):
                 prev_corner -= step
 
                 pt = calib.unproject(corner)
-                corner_reproject = calib.project(pt)
-
-                bad_calib = False
-                if not corner_reproject or (corner_reproject - corner).norm() > 10:
-                    bad_calib = True
 
                 pt = Metashape.Vector([pt.x / pt.z, pt.y / pt.z])
 
@@ -215,7 +215,7 @@ def get_valid_calib_region(calib):
 
                 dif = pt - prev_pt
 
-                if (pt.norm() > max_tan or dif * step <= 0 or bad_calib):
+                if (pt.norm() > max_tan or dif * step <= 0 or not calib_valid(calib, corner)):
                     if u:
                         right_set = True
                     else:
@@ -309,15 +309,25 @@ def compute_undistorted_calib(sensor, zero_cxy):
     bottom = float("inf")
 
     for i in range(reg_top, reg_bottom):
-        pt = calib_initial.unproject(Metashape.Vector([reg_left + 0.5, i + 0.5]))
-        left = max(left, pt.x / pt.z)
-        pt = calib_initial.unproject(Metashape.Vector([reg_right - 0.5, i + 0.5]))
-        right = min(right, pt.x / pt.z)
+        im_pt = Metashape.Vector([reg_left + 0.5, i + 0.5])
+        if (calib_valid(calib_initial, im_pt)):
+            pt = calib_initial.unproject(im_pt)
+            left = max(left, pt.x / pt.z)
+
+        im_pt = Metashape.Vector([reg_right - 0.5, i + 0.5])
+        if (calib_valid(calib_initial, im_pt)):
+            pt = calib_initial.unproject(im_pt)
+            right = min(right, pt.x / pt.z)
     for i in range(reg_left, reg_right):
-        pt = calib_initial.unproject(Metashape.Vector([i + 0.5, reg_top + 0.5]))
-        top = max(top, pt.y / pt.z)
-        pt = calib_initial.unproject(Metashape.Vector([i + 0.5, reg_bottom - 0.5]))
-        bottom = min(bottom, pt.y / pt.z)
+        im_pt = Metashape.Vector([i + 0.5, reg_top + 0.5])
+        if (calib_valid(calib_initial, im_pt)):
+            pt = calib_initial.unproject(im_pt)
+            top = max(top, pt.y / pt.z)
+
+        im_pt = Metashape.Vector([i + 0.5, reg_bottom - 0.5])
+        if (calib_valid(calib_initial, im_pt)):
+            pt = calib_initial.unproject(im_pt)
+            bottom = min(bottom, pt.y / pt.z)
 
     T1 = Metashape.Matrix.Diag([1, 1, 1, 1])
     if zero_cxy:
