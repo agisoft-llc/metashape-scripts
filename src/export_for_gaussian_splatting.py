@@ -373,6 +373,7 @@ def check_undistorted_calib(sensor, calib, T1):
     calib_initial = sensor.calibration
     w = calib.width
     h = calib.height
+    T1_inv = T1.inv()
 
     left = float("inf")
     right = -float("inf")
@@ -380,14 +381,14 @@ def check_undistorted_calib(sensor, calib, T1):
     bottom = -float("inf")
 
     for i in range(h):
-        pt = calib_initial.project(T1.mulp(calib.unproject(Metashape.Vector([0.5, i + 0.5]))))
+        pt = calib_initial.project(T1_inv.mulp(calib.unproject(Metashape.Vector([0.5, i + 0.5]))))
         left = min(left, pt.x)
-        pt = calib_initial.project(T1.mulp(calib.unproject(Metashape.Vector([w - 0.5, i + 0.5]))))
+        pt = calib_initial.project(T1_inv.mulp(calib.unproject(Metashape.Vector([w - 0.5, i + 0.5]))))
         right = max(right, pt.x)
     for i in range(w):
-        pt = calib_initial.project(T1.mulp(calib.unproject(Metashape.Vector([i + 0.5, 0.5]))))
+        pt = calib_initial.project(T1_inv.mulp(calib.unproject(Metashape.Vector([i + 0.5, 0.5]))))
         top = min(top, pt.y)
-        pt = calib_initial.project(T1.mulp(calib.unproject(Metashape.Vector([i + 0.5, h - 0.5]))))
+        pt = calib_initial.project(T1_inv.mulp(calib.unproject(Metashape.Vector([i + 0.5, h - 0.5]))))
         bottom = max(bottom, pt.y)
 
     print(left, right, top, bottom)
@@ -454,6 +455,7 @@ def get_filtered_track_structure(frame, folder, calibs):
         if calib0 is None:
             continue
 
+        T1_inv = T1.inv()
         camera_entry = [cam, [], []]
 
         projections = tie_points.projections[cam]
@@ -462,7 +464,7 @@ def get_filtered_track_structure(frame, folder, calibs):
             if track_id not in tracks:
                 tracks[track_id] = [[], [], []]
 
-            pt = calib1.project(T1.mulp(calib0.unproject(proj.coord)))
+            pt = calib1.project(T1_inv.mulp(calib0.unproject(proj.coord)))
 
             good = False
             if (pt is not None):
