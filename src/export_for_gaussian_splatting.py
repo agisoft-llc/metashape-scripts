@@ -454,6 +454,7 @@ def get_filtered_track_structure(frame, folder, calibs):
         if calib0 is None:
             continue
 
+        T1_inv = T1.inv()
         camera_entry = [cam, [], []]
 
         projections = tie_points.projections[cam]
@@ -462,7 +463,7 @@ def get_filtered_track_structure(frame, folder, calibs):
             if track_id not in tracks:
                 tracks[track_id] = [[], [], []]
 
-            pt = calib1.project(T1.mulp(calib0.unproject(proj.coord)))
+            pt = calib1.project(T1_inv.mulp(calib0.unproject(proj.coord)))
 
             good = False
             if (pt is not None):
