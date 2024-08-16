@@ -7,6 +7,7 @@ from PySide2 import QtGui, QtCore, QtWidgets
 from modules.pip_auto_install import pip_install
 
 pip_install("numpy")
+import numpy as np
 
 class ExportDepthDlg(QtWidgets.QDialog):
 
