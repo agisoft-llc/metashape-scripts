@@ -318,6 +318,7 @@ def compute_undistorted_calib(sensor, zero_cxy):
         if (calib_valid(calib_initial, im_pt)):
             pt = calib_initial.unproject(im_pt)
             right = min(right, pt.x / pt.z)
+
     for i in range(reg_left, reg_right):
         im_pt = Metashape.Vector([i + 0.5, reg_top + 0.5])
         if (calib_valid(calib_initial, im_pt)):
@@ -328,6 +329,9 @@ def compute_undistorted_calib(sensor, zero_cxy):
         if (calib_valid(calib_initial, im_pt)):
             pt = calib_initial.unproject(im_pt)
             bottom = min(bottom, pt.y / pt.z)
+
+    if right <= left or bottom <= top:
+        return (Metashape.Calibration(), Metashape.Matrix.Diag([1, 1, 1, 1]))
 
     T1 = Metashape.Matrix.Diag([1, 1, 1, 1])
     if zero_cxy:
