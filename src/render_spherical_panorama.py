@@ -4,6 +4,7 @@
 
 import math
 import Metashape
+from PySide2 import QtGui, QtCore, QtWidgets
 
 view_consistent_direction = False
 
