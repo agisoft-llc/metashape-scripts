@@ -52,8 +52,16 @@ def create_footprints():
             return  # skipping NA cameras
 
         sensor = camera.sensor
+        w, h = sensor.width, sensor.height
+        if sensor.film_camera:
+            if "File/ImageWidth" in camera.photo.meta and "File/ImageHeight" in camera.photo.meta:
+                w, h = int(camera.photo.meta["File/ImageWidth"]), int(camera.photo.meta["File/ImageHeight"])
+            else:
+                image = camera.photo.image()
+                w, h = image.width, image.height
+
         corners = list()
-        for (x, y) in [[0, 0], [sensor.width - 1, 0], [sensor.width - 1, sensor.height - 1], [0, sensor.height - 1]]:
+        for (x, y) in [[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]:
             ray_origin = camera.unproject(Metashape.Vector([x, y, 0]))
             ray_target = camera.unproject(Metashape.Vector([x, y, 1]))
             if type(surface) == Metashape.Elevation:
