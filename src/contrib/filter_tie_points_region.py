@@ -20,14 +20,17 @@ class TiePointsRegionFilterDlg(QtWidgets.QDialog):
         self.infoLabel = QtWidgets.QLabel("Ensure tie points are selected in the 3D view before running.")
         self.selectedPointsLabel = QtWidgets.QLabel(f"Selected Tie Points: {self.get_selected_tie_points_count()}")
         self.removeCamerasCheckbox = QtWidgets.QCheckBox("Remove Disabled Cameras")
-
+        self.preserveRegionCheckbox = QtWidgets.QCheckBox("Preserve Tie Points Within Region")
+        
         # Layout
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.infoLabel)
         layout.addWidget(self.selectedPointsLabel)
+        layout.addWidget(self.preserveRegionCheckbox)
         layout.addWidget(self.removeCamerasCheckbox)
         layout.addWidget(self.applyFilterButton)
         layout.addWidget(self.closeButton)
+        
         self.setLayout(layout)
 
         # Connect Actions
@@ -55,11 +58,17 @@ class TiePointsRegionFilterDlg(QtWidgets.QDialog):
 
         # Get the selected tie points
         selected_points = [point for point in chunk.tie_points.points if point.selected]
-
+        
         if not selected_points:
             QtWidgets.QMessageBox.warning(self, "Error", "No tie points selected.")
             return
-
+        
+        if not self.preserveRegionCheckbox.isChecked():
+            # Remove all unselected tie points
+            for point in chunk.tie_points.points:
+                if not point.selected:
+                    point.valid = False
+                    
         # Region parameters
         region = chunk.region
         R = region.rot
@@ -85,7 +94,7 @@ class TiePointsRegionFilterDlg(QtWidgets.QDialog):
         region.center = C + R * new_center
         region.size = new_size
         chunk.region = region
-
+                
         # Filter tie points
         valid_points = []
         for point in chunk.tie_points.points:
@@ -103,9 +112,22 @@ class TiePointsRegionFilterDlg(QtWidgets.QDialog):
                 -region.size.z / 2 <= v_r.z <= region.size.z / 2
             ):
                 valid_points.append(point.track_id)
-            elif point not in selected_points:
+            else: 
                 point.valid = False
 
+
+        cameras_to_disable = []
+        for camera in chunk.cameras:
+            if not camera.enabled:
+                continue
+
+            projections = chunk.tie_points.projections[camera]
+            if not any(proj.track_id in valid_points for proj in projections):
+                cameras_to_disable.append(camera)
+
+        for camera in cameras_to_disable:
+            camera.enabled = False
+            
         # Remove disabled cameras if checkbox is selected
         if self.removeCamerasCheckbox.isChecked():
             self.remove_disabled_cameras(chunk)
