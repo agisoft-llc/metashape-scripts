@@ -1,6 +1,15 @@
 import Metashape
 from PySide2 import QtWidgets
 
+"""
+Select tie points to specify the region of interest and run this script (from the Scripts menu) to:
+- Filters tie points based on selected region.
+- Updates bounding region dynamically.
+- Disables cameras outside the ROI.
+- Optional camera removal.
+- Option to preserve points within the region.
+"""
+
 # Checking compatibility
 compatible_major_version = "2.1"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
@@ -20,13 +29,13 @@ class TiePointsRegionFilterDlg(QtWidgets.QDialog):
         self.infoLabel = QtWidgets.QLabel("Ensure tie points are selected in the 3D view before running.")
         self.selectedPointsLabel = QtWidgets.QLabel(f"Selected Tie Points: {self.get_selected_tie_points_count()}")
         self.removeCamerasCheckbox = QtWidgets.QCheckBox("Remove Disabled Cameras")
-        self.preserveRegionCheckbox = QtWidgets.QCheckBox("Preserve Tie Points Within Region")
+        self.preserveTiePointsCheckbox = QtWidgets.QCheckBox("Preserve Unselected Tie Points")
         
         # Layout
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.infoLabel)
         layout.addWidget(self.selectedPointsLabel)
-        layout.addWidget(self.preserveRegionCheckbox)
+        layout.addWidget(self.preserveTiePointsCheckbox)
         layout.addWidget(self.removeCamerasCheckbox)
         layout.addWidget(self.applyFilterButton)
         layout.addWidget(self.closeButton)
@@ -63,7 +72,7 @@ class TiePointsRegionFilterDlg(QtWidgets.QDialog):
             QtWidgets.QMessageBox.warning(self, "Error", "No tie points selected.")
             return
         
-        if not self.preserveRegionCheckbox.isChecked():
+        if not self.preserveTiePointsCheckbox.isChecked():
             # Remove all unselected tie points
             for point in chunk.tie_points.points:
                 if not point.selected:
@@ -149,6 +158,6 @@ def tie_points_region_filter_tool():
 
 
 # Add script to Metashape menu
-label = "Scripts/Tie Points Region Filter Tool"
+label = "Scripts/Filter tie points and cameras by points selection"
 Metashape.app.addMenuItem(label, tie_points_region_filter_tool)
 print(f"To execute this script, select {label}")
