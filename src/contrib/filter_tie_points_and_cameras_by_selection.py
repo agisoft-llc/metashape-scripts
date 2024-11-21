@@ -1,14 +1,14 @@
 import Metashape
 from PySide2 import QtWidgets
 
-"""
-Select tie points to specify the region of interest and run this script (from the Scripts menu) to:
-- Filters tie points based on selected region.
-- Updates bounding region dynamically.
-- Disables cameras outside the ROI.
-- Optional camera removal.
-- Option to preserve points within the region.
-"""
+# Select tie points to specify the region of interest and run this script (from the Scripts menu) to:
+# - Filters tie points based on selected region.
+# - Updates bounding region dynamically.
+# - Disables cameras outside the ROI.
+# - Optional camera removal.
+# - Option to preserve points within the region.
+# Author: Haim Zisman, Haimzismann@gmail.com
+
 
 # Checking compatibility
 compatible_major_version = "2.1"
