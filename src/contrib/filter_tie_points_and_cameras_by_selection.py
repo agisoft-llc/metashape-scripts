@@ -29,7 +29,7 @@ class TiePointsRegionFilterDlg(QtWidgets.QDialog):
         self.infoLabel = QtWidgets.QLabel("Ensure tie points are selected in the 3D view before running.")
         self.selectedPointsLabel = QtWidgets.QLabel(f"Selected Tie Points: {self.get_selected_tie_points_count()}")
         self.removeCamerasCheckbox = QtWidgets.QCheckBox("Remove Disabled Cameras")
-        self.preserveTiePointsCheckbox = QtWidgets.QCheckBox("Preserve Unselected Tie Points")
+        self.preserveTiePointsCheckbox = QtWidgets.QCheckBox("Preserve Unselected Tie Points Within Region")
         
         # Layout
         layout = QtWidgets.QVBoxLayout()
