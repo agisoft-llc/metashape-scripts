@@ -64,6 +64,13 @@ def create_footprints():
         for (x, y) in [[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]:
             ray_origin = camera.unproject(Metashape.Vector([x, y, 0]))
             ray_target = camera.unproject(Metashape.Vector([x, y, 1]))
+
+            if sensor.type == Metashape.Sensor.Type.Frame: # Avoiding possibly distorted corners
+                center = camera.unproject([(w - 1) / 2, (h - 1) / 2, 1])
+                ray_target = center
+                ray_target = ray_target + camera.unproject(Metashape.Vector([(w - 1) / 2, y, 1])) - center
+                ray_target = ray_target + camera.unproject(Metashape.Vector([x, (h - 1) / 2, 1])) - center
+
             if type(surface) == Metashape.Elevation:
                 dem_origin = T.mulp(ray_origin)
                 dem_target = T.mulp(ray_target)
