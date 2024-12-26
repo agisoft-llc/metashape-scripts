@@ -1,167 +1,41 @@
-# Created by GeoScan Ltd. (http://geoscan.aero)
-#
-# This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
+# quick_layout.py is discontinued because corresponding functionality now included in Metashape.
+# Please, instead:
+# 1) Select photos in Workspace or in Photos pane
+# 2) Mouse right-click on them -> Align Cameras by Reference
+# 3) Method: Automatic (AI)
 
-import Metashape as ps
-import math, time
+import Metashape
+from PySide2 import QtWidgets
 
 # Checking compatibility
 compatible_major_version = "2.2"
-found_major_version = ".".join(ps.app.version.split('.')[:2])
+found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-from PySide2.QtGui import *
-from PySide2.QtCore import *
-from PySide2.QtWidgets import *
-import copy
-
-
-def time_measure(func):
-    def wrapper(*args, **kwargs):
-        t1 = time.time()
-        res = func(*args, **kwargs)
-        t2 = time.time()
-        print("Finished processing in {} sec.".format(t2 - t1))
-        return res
-
-    return wrapper
-
-
-def show_message(msg):
-    msgBox = QMessageBox()
-    print(msg)
-    msgBox.setText(msg)
-    msgBox.exec()
-
-
-def check_chunk(chunk):
-    if chunk is None or len(chunk.cameras) == 0:
-        show_message("Empty chunk!")
-        return False
-
-    if chunk.crs is None:
-        show_message("Initialize chunk coordinate system first")
-        return False
-
-    return True
-
-
-def get_antenna_transform(sensor):
-    location = sensor.antenna.location
-    if location is None:
-        location = sensor.antenna.location_ref
-    if location is None:
-        location = ps.Vector([0.0, 0.0, 0.0])
-    rotation = sensor.antenna.rotation
-    if rotation is None:
-        rotation = sensor.antenna.rotation_ref
-    if rotation is None:
-        rotation = ps.Vector([0.0, 0.0, 0.0])
-    return ps.Matrix.Diag((1, -1, -1, 1)) * ps.Matrix.Translation(location) * ps.Matrix.Rotation(ps.Utils.ypr2mat(rotation))
-
-
-def init_chunk_transform(chunk):
-    if chunk.transform.scale is not None:
-        return
-    chunk_origin = ps.Vector([0, 0, 0])
-    for c in chunk.cameras:
-        if c.reference.location is None:
-            continue
-        chunk_origin = chunk.crs.unproject(c.reference.location)
-        break
-
-    chunk.transform.scale = 1
-    chunk.transform.rotation = ps.Matrix.Diag((1, 1, 1))
-    chunk.transform.translation = chunk_origin
-
-
-# Evaluates rotation matrices for cameras that have location
-# algorithm is straightforward: we assume copter has zero pitch and roll,
-# and yaw is evaluated from current copter direction
-# current direction is evaluated simply subtracting location of
-# current camera from the next camera location
-def estimate_rotation_matrices(chunk):
-    groups = copy.copy(chunk.camera_groups)
-
-    groups.append(None)
-    for group in groups:
-        group_cameras = list(filter(lambda c: c.group == group, chunk.cameras))
-
-        if len(group_cameras) == 0:
-            continue
-
-        if len(group_cameras) == 1:
-            if group_cameras[0].reference.rotation is None:
-                group_cameras[0].reference.rotation = ps.Vector([0, 0, 0])
-            continue
-
-        for idx, c in enumerate(group_cameras[0:-1]):
-            next_camera = group_cameras[idx + 1]
-
-            if c.reference.rotation is None:
-                if c.reference.location is None or next_camera.reference.location is None:
-                    continue
-
-                prev_location = chunk.crs.unproject(c.reference.location)
-                next_location = chunk.crs.unproject(next_camera.reference.location)
-
-                direction = chunk.crs.localframe(prev_location).mulv(next_location - prev_location)
-
-                yaw = math.degrees(math.atan2(direction.y, direction.x)) + 90
-                if yaw < 0:
-                    yaw = yaw + 360
-
-                c.reference.rotation = ps.Vector([yaw, 0, 0])
-
-        if group_cameras[-1].reference.rotation is None and group_cameras[-1].reference.location is not None:
-            group_cameras[-1].reference.rotation = group_cameras[-2].reference.rotation
-
-
-@time_measure
-def align_cameras(chunk):
-    init_chunk_transform(chunk)
-
-    estimate_rotation_matrices(chunk)
-
-    for c in chunk.cameras:
-        if c.transform is not None:
-            continue
-
-        location = c.reference.location
-        if location is None:
-            continue
-
-        rotation = c.reference.rotation
-        if rotation is None:
-            continue
-
-        location = chunk.crs.unproject(location)  # location in ECEF
-        rotation = chunk.crs.localframe(location).rotation().t() * ps.Utils.euler2mat(rotation, chunk.euler_angles) # rotation matrix in ECEF
-
-        transform = ps.Matrix.Translation(location) * ps.Matrix.Rotation(rotation)
-        transform = chunk.transform.matrix.inv() * transform * get_antenna_transform(c.sensor).inv()
-
-        c.transform = ps.Matrix.Translation(transform.translation()) * ps.Matrix.Rotation(transform.rotation())
-
-
 def run_camera_alignment():
-    print("Script started...")
+    app = QtWidgets.QApplication.instance()
+    parent = app.activeWindow()
 
-    doc = ps.app.document
-    chunk = doc.chunk
+    dialog = QtWidgets.QDialog(parent)
+    dialog.setWindowTitle("Error")
+    layout = QtWidgets.QVBoxLayout(dialog)
 
-    if not check_chunk(chunk):
-        return
+    label = QtWidgets.QLabel(
+        "automatic_masking.py is discontinued because corresponding functionality now included in Metashape 2.2.<br>"
+        "Please, instead:<br>"
+        "1) Select photos in Workspace or in Photos pane<br>"
+        "2) <b>Mouse Right-Click on them->Align Cameras by Reference</b>"
+    )
+    label.setWordWrap(False)
+    layout.addWidget(label)
 
-    try:
-        align_cameras(chunk)
-    except Exception as e:
-        print(e)
+    button = QtWidgets.QPushButton("OK")
+    button.clicked.connect(dialog.accept)
+    layout.addWidget(button)
 
-    print("Script finished!")
+    dialog.exec()
 
-
-label = "Scripts/Apply Vertical Camera Alignment"
-ps.app.addMenuItem(label, run_camera_alignment)
+label = "Scripts/[DISCONTINUED] Apply Vertical Camera Alignment"
+Metashape.app.addMenuItem(label, run_camera_alignment)
 print("To execute this script press {}".format(label))
