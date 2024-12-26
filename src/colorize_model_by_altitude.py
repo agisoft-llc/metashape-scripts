@@ -118,7 +118,7 @@ def colorize_model_vertices_by_altitude():
 
     if (build_texture):
         chunk.buildUV(mapping_mode = Metashape.GenericMapping, page_count = 1, texture_size = 8192)
-        chunk.buildTexture(texture_size = 8192, source_model = copy_model.key, transfer_texture = False)
+        chunk.buildTexture(texture_size = 8192, source_asset = copy_model.key, transfer_texture = False)
 
     Metashape.app.update()
     print("Script finished.")
