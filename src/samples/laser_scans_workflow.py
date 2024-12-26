@@ -18,7 +18,7 @@ import Metashape
 import os, sys
 
 # Checking compatibility
-compatible_major_version = "2.1"
+compatible_major_version = "2.2"
 version_split = Metashape.app.version.split('.')
 found_major_version = ".".join(version_split[:2])
 

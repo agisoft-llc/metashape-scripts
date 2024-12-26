@@ -9,7 +9,7 @@ from PySide2 import QtGui, QtCore, QtWidgets
 view_consistent_direction = False
 
 # Checking compatibility
-compatible_major_version = "2.1"
+compatible_major_version = "2.2"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     print("Unsupported Metashape version: {} != {}. Script may not work properly".format(found_major_version, compatible_major_version))

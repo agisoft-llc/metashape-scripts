@@ -22,7 +22,7 @@ import urllib.request, tempfile
 from modules.pip_auto_install import pip_install, user_packages_location, _is_already_installed
 
 # Checking compatibility
-compatible_major_version = "2.1"
+compatible_major_version = "2.2"
 found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
