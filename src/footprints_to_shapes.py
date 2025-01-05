@@ -65,7 +65,7 @@ def create_footprints():
             ray_origin = camera.unproject(Metashape.Vector([x, y, 0]))
             ray_target = camera.unproject(Metashape.Vector([x, y, 1]))
 
-            if sensor.type == Metashape.Sensor.Type.Frame: # Avoiding possibly distorted corners
+            if sensor.type == Metashape.Sensor.Type.Frame and sensor.calibration and 'k4' in chunk.meta['OptimizeCameras/fit_flags'] and not 'optimize/sigma0' in chunk.meta.keys(): # case k4 optimization with no extra correctionsd corners
                 center = camera.unproject([(w - 1) / 2, (h - 1) / 2, 1])
                 ray_target = center
                 ray_target = ray_target + camera.unproject(Metashape.Vector([(w - 1) / 2, y, 1])) - center
