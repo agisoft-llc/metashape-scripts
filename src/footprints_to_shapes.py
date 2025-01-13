@@ -116,7 +116,7 @@ def create_footprints():
                         calibration_stable = False
 
             if not calibration_stable:
-                print("Sensor", sensor.label, "(" + camera.label + ") calibration is unstable at the corners. Cropping footprints.")
+                print("Sensor \"" + sensor.label + "\" (" + camera.label + ") calibration is unstable at the corners. Cropping footprints.")
 
             tls[sensor.key] = tl
             brs[sensor.key] = br
