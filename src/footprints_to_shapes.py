@@ -12,6 +12,12 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
+def calib_valid(calib, point):
+    reproj = calib.project(calib.unproject(point))
+    if not reproj:
+        return False
+    return (reproj - point).norm() < 1.0
+
 
 def create_footprints():
     """
@@ -47,6 +53,11 @@ def create_footprints():
     if chunk_crs is None:
         chunk_crs = Metashape.CoordinateSystem('LOCAL')
 
+    tls = {}
+    brs = {}
+    bls = {}
+    trs = {}
+
     def process_camera(chunk, camera):
         if camera.type != Metashape.Camera.Type.Regular or not camera.transform:
             return  # skipping NA cameras
@@ -60,16 +71,62 @@ def create_footprints():
                 image = camera.photo.image()
                 w, h = image.width, image.height
 
+        if sensor.key in tls:
+            tl = tls[sensor.key]
+            br = brs[sensor.key]
+            bl = bls[sensor.key]
+            tr = trs[sensor.key]
+        else:
+            tl = None
+            br = None
+            bl = None
+            tr = None
+
+            size = max(w, h)
+            calibration_stable = True
+
+            for t in range(size // 2):
+
+                if tl is None:
+                    pt = Metashape.Vector([t * (w - 1) // size, t * (h - 1) // size])
+                    if calib_valid(sensor.calibration, pt):
+                        tl = pt
+                    else:
+                        calibration_stable = False
+
+                if br is None:
+                    pt = Metashape.Vector([(size - t) * (w - 1) // size, (size - t) * (h - 1) // size])
+                    if calib_valid(sensor.calibration, pt):
+                        br = pt
+                    else:
+                        calibration_stable = False
+
+                if bl is None:
+                    pt = Metashape.Vector([t * (w - 1) // size, (size - t) * (h - 1) // size])
+                    if calib_valid(sensor.calibration, pt):
+                        bl = pt
+                    else:
+                        calibration_stable = False
+
+                if tr is None:
+                    pt = Metashape.Vector([(size - t) * (w - 1) // size, t * (h - 1) // size])
+                    if calib_valid(sensor.calibration, pt):
+                        tr = pt
+                    else:
+                        calibration_stable = False
+
+            if not calibration_stable:
+                print("Sensor", sensor.label, "(" + camera.label + ") calibration is unstable at the corners. Cropping footprints.")
+
+            tls[sensor.key] = tl
+            brs[sensor.key] = br
+            bls[sensor.key] = bl
+            trs[sensor.key] = tr
+
         corners = list()
-        for (x, y) in [[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]:
+        for (x, y) in [tl, tr, br, bl]:
             ray_origin = camera.unproject(Metashape.Vector([x, y, 0]))
             ray_target = camera.unproject(Metashape.Vector([x, y, 1]))
-
-            if sensor.type == Metashape.Sensor.Type.Frame: # Avoiding possibly distorted corners
-                center = camera.unproject([(w - 1) / 2, (h - 1) / 2, 1])
-                ray_target = center
-                ray_target = ray_target + camera.unproject(Metashape.Vector([(w - 1) / 2, y, 1])) - center
-                ray_target = ray_target + camera.unproject(Metashape.Vector([x, (h - 1) / 2, 1])) - center
 
             if type(surface) == Metashape.Elevation:
                 dem_origin = T.mulp(ray_origin)
@@ -82,7 +139,7 @@ def create_footprints():
                     corner = T.inv().mulp(corner)
             else:
                 corner = surface.pickPoint(ray_origin, ray_target)
-            if not corner:
+            if not corner and chunk.tie_points:
                 corner = chunk.tie_points.pickPoint(ray_origin, ray_target)
             if not corner:
                 break
