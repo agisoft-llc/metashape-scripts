@@ -64,6 +64,7 @@ def create_footprints():
 
         sensor = camera.sensor
         w, h = sensor.width, sensor.height
+
         if sensor.film_camera:
             if "File/ImageWidth" in camera.photo.meta and "File/ImageHeight" in camera.photo.meta:
                 w, h = int(camera.photo.meta["File/ImageWidth"]), int(camera.photo.meta["File/ImageHeight"])
@@ -71,49 +72,54 @@ def create_footprints():
                 image = camera.photo.image()
                 w, h = image.width, image.height
 
-        if sensor.key in tls:
-            tl = tls[sensor.key]
-            br = brs[sensor.key]
-            bl = bls[sensor.key]
-            tr = trs[sensor.key]
+            tl = Metashape.Vector((0, 0))
+            br = Metashape.Vector((w, h))
+            bl = Metashape.Vector((0, h))
+            tr = Metashape.Vector((w, 0))
         else:
-            tl = None
-            br = None
-            bl = None
-            tr = None
+            if sensor.key in tls:
+                tl = tls[sensor.key]
+                br = brs[sensor.key]
+                bl = bls[sensor.key]
+                tr = trs[sensor.key]
+            else:
+                tl = None
+                br = None
+                bl = None
+                tr = None
 
-            size = max(w, h)
-            calibration_stable = True
+                size = max(w, h)
+                calibration_stable = True
 
-            for t in range(size // 2):
+                for t in range(size // 2):
 
-                if tl is None:
-                    pt = Metashape.Vector([t * (w - 1) // size, t * (h - 1) // size])
-                    if calib_valid(sensor.calibration, pt):
-                        tl = pt
-                    else:
-                        calibration_stable = False
+                    if tl is None:
+                        pt = Metashape.Vector([t * (w - 1) // size, t * (h - 1) // size])
+                        if calib_valid(sensor.calibration, pt):
+                            tl = pt
+                        else:
+                            calibration_stable = False
 
-                if br is None:
-                    pt = Metashape.Vector([(size - t) * (w - 1) // size, (size - t) * (h - 1) // size])
-                    if calib_valid(sensor.calibration, pt):
-                        br = pt
-                    else:
-                        calibration_stable = False
+                    if br is None:
+                        pt = Metashape.Vector([(size - t) * (w - 1) // size, (size - t) * (h - 1) // size])
+                        if calib_valid(sensor.calibration, pt):
+                            br = pt
+                        else:
+                            calibration_stable = False
 
-                if bl is None:
-                    pt = Metashape.Vector([t * (w - 1) // size, (size - t) * (h - 1) // size])
-                    if calib_valid(sensor.calibration, pt):
-                        bl = pt
-                    else:
-                        calibration_stable = False
+                    if bl is None:
+                        pt = Metashape.Vector([t * (w - 1) // size, (size - t) * (h - 1) // size])
+                        if calib_valid(sensor.calibration, pt):
+                            bl = pt
+                        else:
+                            calibration_stable = False
 
-                if tr is None:
-                    pt = Metashape.Vector([(size - t) * (w - 1) // size, t * (h - 1) // size])
-                    if calib_valid(sensor.calibration, pt):
-                        tr = pt
-                    else:
-                        calibration_stable = False
+                    if tr is None:
+                        pt = Metashape.Vector([(size - t) * (w - 1) // size, t * (h - 1) // size])
+                        if calib_valid(sensor.calibration, pt):
+                            tr = pt
+                        else:
+                            calibration_stable = False
 
             if not calibration_stable:
                 print("Sensor \"" + sensor.label + "\" (" + camera.label + ") calibration is unstable at the corners. Cropping footprints.")
