@@ -58,37 +58,38 @@ doc.save()
 for laser_scan_path in laser_scans:
     chunk.importPointCloud(laser_scan_path, is_laser_scan=True)
     doc.save()
-laser_scan_cameras = chunk.cameras
 
-group = chunk.addPointCloudGroup()
-initial_group_crs = None
-for point_cloud in chunk.point_clouds:
-    point_cloud.group = group
-doc.save()
-
-if preserve_laser_scans_relative_position:
-    group.fixed = True
-    initial_group_crs = group.crs
-
-    # unlock transform
-    group.crs = None
-else:
+if not preserve_laser_scans_relative_position:
     for point_cloud in chunk.point_clouds:
         # unlock transform
         point_cloud.crs = None
 
-chunk.addPhotos(photos)
+    chunk.matchPhotos(match_laser_scans = True)
+    doc.save()
+
+    chunk.alignCameras(reset_alignment = True)
+    doc.save()
+
+group = chunk.addPointCloudGroup()
+for point_cloud in chunk.point_clouds:
+    point_cloud.group = group
+group.fixed = True
+
+doc.save()
+
+chunk.addPhotos(photos)  
+doc.save()
+
 if preserve_laser_scans_absolute_position:
-    chunk.crs = initial_group_crs
-    for cam in chunk.cameras:
-        if cam not in laser_scan_cameras:
-            cam.reference.enabled = False
+    chunk.crs = group.crs
+else:
+    # unlock transform
+    group.crs = None
+
+chunk.matchPhotos(reset_matches = True, downscale = 1, keypoint_limit = 40000, tiepoint_limit = 10000, generic_preselection = False, reference_preselection = False)
 doc.save()
 
-chunk.matchPhotos(downscale = 1, keypoint_limit = 40000, tiepoint_limit = 10000, generic_preselection = False, reference_preselection = False)
-doc.save()
-
-chunk.alignCameras(reset_alignment = not preserve_laser_scans_absolute_position)
+chunk.alignCameras()
 doc.save()
 
 chunk.buildDepthMaps(downscale = 2, filter_mode = Metashape.MildFiltering)
@@ -99,4 +100,3 @@ doc.save()
 
 if chunk.model:
     chunk.exportModel(output_folder + '/model.obj')
-
