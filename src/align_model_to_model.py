@@ -27,13 +27,8 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-
-Path(user_packages_location).mkdir(parents=True, exist_ok=True)
-temporary_file = os.path.join(user_packages_location, "temp_links.html")
-
-requirements_txt = """-f "{find_links_file_path}"
-open3d==0.18.0
-pyhull==2015.2.1
+requirements_txt = """open3d==0.18.0
+scipy==1.12.0
 numpy==1.26.4
 
 asttokens==2.4.1
@@ -90,29 +85,12 @@ urllib3==2.2.2
 wcwidth==0.2.13
 Werkzeug==3.0.1
 widgetsnbextension==4.0.11
-zipp==3.18.1""".format(find_links_file_path=temporary_file)
+zipp==3.18.1"""
 
-# Avoid network request if requirements already installed
-if not _is_already_installed(requirements_txt):
-    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.html"
-    urllib.request.urlretrieve(find_links_file_url, temporary_file)
-    
-    python_include_path = str(Path(sys.executable).parent.parent / "include" / "python{}.{}".format(sys.version_info[0], sys.version_info[1]))
-
-    old_environ = dict(os.environ)
-    new_path = python_include_path # required for building pyhull wheel
-    old_path = os.environ.get("C_INCLUDE_PATH")
-    if old_path:
-        new_path = old_path + ":" + new_path
-    os.environ["C_INCLUDE_PATH"] = new_path
-    try:
-        pip_install(requirements_txt)
-    finally:
-        os.environ.clear()
-        os.environ.update(old_environ)
+pip_install(requirements_txt)
 
 import open3d as o3d
-from pyhull.convex_hull import ConvexHull
+from scipy.spatial import ConvexHull
 import numpy as np
 
 try:
@@ -252,7 +230,7 @@ def subsample_points(vs, n):
 
 def estimate_convex_hull_size(vs):
     hull = ConvexHull(vs)
-    indices = np.unique(np.array(list(itertools.chain.from_iterable(hull.vertices)), dtype=np.uint32))
+    indices = np.unique(hull.vertices)
     hull_vs = vs[indices]
     dists = hull_vs[:, None, :] - hull_vs[None, :, :]
     dists = dists.reshape(-1, 3)
