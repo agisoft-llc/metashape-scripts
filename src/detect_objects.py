@@ -73,11 +73,7 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-pathlib.Path(user_packages_location).mkdir(parents=True, exist_ok=True)
-temporary_file = os.path.join(user_packages_location, "temp_links.html")
-
-requirements_txt = """-f "{find_links_file_path}"
--f https://download.pytorch.org/whl/torch_stable.html
+requirements_txt = """-f https://download.pytorch.org/whl/torch_stable.html
 albumentations==1.0.3
 deepforest==1.2.4
 pytorch-lightning==1.5.10
@@ -154,11 +150,7 @@ xmltodict==0.13.0
 yarl==1.9.4
 zipp==3.18.1""".format(find_links_file_path=temporary_file)
 
-# Avoid network request if requirements already installed
-if not _is_already_installed(requirements_txt):
-    find_links_file_url = "https://raw.githubusercontent.com/agisoft-llc/metashape-scripts/master/misc/links.html"
-    urllib.request.urlretrieve(find_links_file_url, temporary_file)
-    pip_install(requirements_txt)
+pip_install(requirements_txt)
 
 def pandas_append(df, row, ignore_index=False):
     import pandas as pd
