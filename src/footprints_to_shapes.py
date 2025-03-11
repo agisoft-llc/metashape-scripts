@@ -149,7 +149,7 @@ def create_footprints():
                 corner = chunk.tie_points.pickPoint(ray_origin, ray_target)
             if not corner:
                 break
-            corner = chunk.crs.project(T.mulp(corner))
+            corner = chunk.shapes.crs.project(T.mulp(corner))
             corners.append(corner)
 
         if len(corners) == 4:
