@@ -42,6 +42,8 @@ def render_image(source_data, sensor_type, result_width_px, result_height_px, ce
         chunk.model.renderImage(transform, calibration).save(result_path)
     elif (source_data == Metashape.DataSource.PointCloudData):
         chunk.point_cloud.renderImage(transform, calibration, point_size=4).save(result_path)
+    elif (source_data == Metashape.DataSource.TiePointsData):
+        chunk.tie_points.renderImage(transform, calibration, point_size=4).save(result_path)
 
 class RenderImageDlg(QtWidgets.QDialog):
 
@@ -59,6 +61,7 @@ class RenderImageDlg(QtWidgets.QDialog):
         self.sourceDataCmb = QtWidgets.QComboBox()
         self.sourceDataCmb.addItem("Model")
         self.sourceDataCmb.addItem("Point cloud")
+        self.sourceDataCmb.addItem("Tie points")
 
         self.sensorTypeTxt = QtWidgets.QLabel()
         self.sensorTypeTxt.setText("Sensor type:")
@@ -122,6 +125,8 @@ class RenderImageDlg(QtWidgets.QDialog):
             source_data = Metashape.DataSource.ModelData
         elif source_txt == "Point cloud":
             source_data = Metashape.DataSource.PointCloudData
+        elif source_txt == "Tie points":
+            source_data = Metashape.DataSource.TiePointsData
 
         if sensor_type_txt == "Frame":
             sensor_type = Metashape.Sensor.Type.Frame
@@ -168,9 +173,9 @@ class RenderImageDlg(QtWidgets.QDialog):
         print("Started rendering...")
 
         render_image(source_data, sensor_type, result_width_px, result_height_px, view_center, rotation, viewpoint.fov, result_path)
-        
+
         print("Script finished!")
-        
+
         return 1
 
 def render_image_gui():
