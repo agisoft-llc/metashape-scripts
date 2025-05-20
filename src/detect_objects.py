@@ -148,7 +148,7 @@ tzdata==2024.1
 Werkzeug==3.0.1
 xmltodict==0.13.0
 yarl==1.9.4
-zipp==3.18.1""".format(find_links_file_path=temporary_file)
+zipp==3.18.1"""
 
 pip_install(requirements_txt)
 
