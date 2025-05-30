@@ -1268,14 +1268,15 @@ class DetectObjectsDlg(QtWidgets.QDialog):
         if load_path is not None:
             models_dir = str(pathlib.Path(load_path).parent)
 
-        save_path = Metashape.app.getSaveFileName("Trained model save path", models_dir, ".model")
-        if len(save_path) > 0 and save_path.split(".")[-1] != "model":
+        save_path = Metashape.app.getSaveFileName("Trained model save path", models_dir, "*.model;;PyTorch Model (*.pth)")
+        ext = save_path.split(".")[-1]
+        if len(save_path) > 0 and ext != "model" and ext != "pth":
             save_path += ".model"
 
         self.edtModelSavePath.setText(save_path)
 
     def choose_model_load_path(self):
-        load_path = Metashape.app.getOpenFileName("Trained model load path", "", "*.model")
+        load_path = Metashape.app.getOpenFileName("Trained model load path", "", "All Formats (*.model *.pth);;*.model;;PyTorch Model (*.pth)")
         self.edtModelLoadPath.setText(load_path)
 
     def readModelLoadPathFromSettings(self):
