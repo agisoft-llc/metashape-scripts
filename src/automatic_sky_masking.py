@@ -276,6 +276,7 @@ def generate_automatic_sky_masks_with_onnx(chunk=None):
     print("Importing masks into project...")
     for masks_dir, dir_cameras in cameras_by_masks_dir.items():
         chunk.generateMasks(path=masks_dir + "/{filename}_mask.png", masking_mode=Metashape.MaskingMode.MaskingModeFile,
+                            mask_operation=Metashape.MaskOperation.MaskOperationUnion,
                             cameras=dir_cameras)
 
     print("Script finished.")
