@@ -27,7 +27,7 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-requirements_txt = """open3d==0.18.0
+requirements_txt = """open3d==0.19.0
 scipy==1.12.0
 numpy==1.26.4
 
