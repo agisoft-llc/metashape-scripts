@@ -61,6 +61,7 @@
 
 
 import Metashape
+import warnings
 import pathlib, shutil, os, time
 from PySide2 import QtGui, QtCore, QtWidgets
 
@@ -73,82 +74,21 @@ found_major_version = ".".join(Metashape.app.version.split('.')[:2])
 if found_major_version != compatible_major_version:
     raise Exception("Incompatible Metashape version: {} != {}".format(found_major_version, compatible_major_version))
 
-requirements_txt = """-f https://download.pytorch.org/whl/torch_stable.html
-albumentations==1.0.3
-deepforest==1.2.4
-pytorch-lightning==1.5.10
-torch==1.9.0+cu111
-torchvision==0.10.0+cu111
-torchaudio===0.9.0
+pathlib.Path(user_packages_location).mkdir(parents=True, exist_ok=True)
+temporary_file = os.path.join(user_packages_location, "temp_links.html")
 
-absl-py==2.1.0
-affine==2.4.0
-aiohttp==3.9.3
-aiosignal==1.3.1
-async-timeout==4.0.3
-attrs==23.2.0
-certifi==2024.2.2
-click==8.1.7
-click-plugins==1.1.1
-cligj==0.7.2
-colorama==0.4.6
-contourpy==1.2.0
-cycler==0.12.1
-fiona==1.9.6
-fonttools==4.50.0
-frozenlist==1.4.1
-fsspec==2024.3.1
-future==1.0.0
-geopandas==0.14.3
-grpcio==1.62.1
-idna==3.6
-imagecodecs==2024.1.1
-imageio==2.34.0
-importlib_metadata==7.1.0
-importlib_resources==6.3.2
-kiwisolver==1.4.5
-lazy_loader==0.3
-lightning-utilities==0.11.0
-Markdown==3.6
-MarkupSafe==2.1.5
-matplotlib==3.8.3
-multidict==6.0.5
-networkx==3.2.1
-numpy==1.26.4
-opencv-python==4.9.0.80
-opencv-python-headless==4.9.0.80
-packaging==24.0
-pandas==2.2.1
-pillow==10.2.0
-progressbar2==4.4.2
-protobuf==5.26.0
-psutil==5.9.8
-pyDeprecate==0.3.1
-pyparsing==3.1.2
-pyproj==3.6.1
-python-dateutil==2.9.0.post0
-python-utils==3.8.2
-pytz==2024.1
-PyYAML==6.0.1
-rasterio==1.3.9
-Rtree==1.2.0
-scikit-image==0.22.0
-scipy==1.12.0
-shapely==2.0.3
-six==1.16.0
-slidingwindow==0.0.14
-snuggs==1.4.7
-tensorboard==2.16.2
-tensorboard-data-server==0.7.2
-tifffile==2024.2.12
-torchmetrics==1.2.1
-tqdm==4.66.2
-typing_extensions==4.10.0
-tzdata==2024.1
-Werkzeug==3.0.1
-xmltodict==0.13.0
-yarl==1.9.4
-zipp==3.18.1"""
+requirements_txt = """-f "{find_links_file_path}"
+--index-url https://pypi.org/simple
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.0+cu128
+torchvision==0.22.0+cu128
+torchaudio==2.7.0+cu128
+
+deepforest==2.0.0
+pytorch-lightning==2.6.1
+albumentations==2.0.8
+
+rasterio==1.4.3""".format(find_links_file_path=temporary_file)
 
 pip_install(requirements_txt)
 
@@ -189,71 +129,6 @@ def getShapeVertices(shape):
             result.append(coord)
 
     return result
-
-# https://github.com/weecology/DeepForest/blob/ec1f8aafb833008718219f18a5b5fdb9fc35e171/deepforest/utilities.py#L111C5-L111C16
-def original_use_release_without_checking_latest_github_release(save_dir, prebuilt_model="NEON", check_release=True):
-    """
-    Check the existence of, or download the latest model release from github
-    Args:
-        save_dir: Directory to save filepath
-        prebuilt_model: Currently only accepts "NEON", but could be expanded to include other prebuilt models. The local model will be called prebuilt_model.h5 on disk.
-        check_release (logical): whether to check github for a model recent release. In cases where you are hitting the github API rate limit, set to False and any local model will be downloaded. If no model has been downloaded an error will raise.
-        
-    Returns: release_tag, output_path (str): path to downloaded model
-
-    """
-    import json, urllib
-    import pandas as pd
-    from deepforest.utilities import DownloadProgressBar
-    # Naming based on pre-built model
-    output_path = os.path.join(save_dir, prebuilt_model + ".pt")
-
-    if check_release:
-        # Find latest github tag release from the DeepLidar repo
-        _json = json.loads(
-            urllib.request.urlopen(
-                urllib.request.Request(
-                    'https://api.github.com/repos/weecology/DeepForest/releases/44158489', # This line is patched to fix old behaviour
-                    headers={'Accept': 'application/vnd.github.v3+json'},
-                )).read())
-        asset = _json['assets'][0]
-        url = asset['browser_download_url']
-
-        # Check the release tagged locally
-        try:
-            release_txt = pd.read_csv(save_dir + "current_release.csv")
-        except BaseException:
-            release_txt = pd.DataFrame({"current_release": [None]})
-
-        # Download the current release it doesn't exist
-        if not release_txt.current_release[0] == _json["html_url"]:
-
-            print("Downloading model from DeepForest release {}, see {} for details".format(
-                _json["tag_name"], _json["html_url"]))
-
-            with DownloadProgressBar(unit='B',
-                                     unit_scale=True,
-                                     miniters=1,
-                                     desc=url.split('/')[-1]) as t:
-                urllib.request.urlretrieve(url, filename=output_path, reporthook=t.update_to)
-
-            print("Model was downloaded and saved to {}".format(output_path))
-
-            # record the release tag locally
-            release_txt = pd.DataFrame({"current_release": [_json["html_url"]]})
-            release_txt.to_csv(save_dir + "current_release.csv")
-        else:
-            print("Model from DeepForest release {} was already downloaded. "
-                  "Loading model from file.".format(_json["html_url"]))
-
-        return _json["html_url"], output_path
-    else:
-        try:
-            release_txt = pd.read_csv(save_dir + "current_release.csv")
-        except BaseException:
-            raise ValueError("Check release argument is {}, but no release has been previously downloaded".format(check_release))
-
-        return release_txt.current_release[0], output_path
 
 class DetectObjectsDlg(QtWidgets.QDialog):
 
@@ -397,50 +272,27 @@ class DetectObjectsDlg(QtWidgets.QDialog):
             shutil.rmtree(subdir, ignore_errors=True)
             os.mkdir(subdir)
 
-        import torch
-        torch_hub_dir = torch.hub.get_dir()
-
-        import deepforest
-        from deepforest import utilities
-        if not hasattr(utilities, '__models_dir_path_already_patched__'):
-            original_use_release = utilities.use_release
-            original_use_bird_release = utilities.use_bird_release
-            # 1) This is a workaround for Windows permission issues (we can't easily download files into .../site-packages/deepforest/...)
-            # 2) This is a workaround to fix error "deepforest/utilities.py line 133, asset = _json['assets'][0], IndexError: list index out of range" (patched version doesn't load the latest github release)
-            assert deepforest.__version__ == "1.2.4"
-            def patched_use_release(**kwargs):
-                kwargs["save_dir"] = torch_hub_dir
-                return original_use_release_without_checking_latest_github_release(**kwargs)
-            def patched_use_bird_release(**kwargs):
-                raise Exception("Birds pre-train is unsupported")
-            utilities.use_release = patched_use_release
-            utilities.use_bird_release = patched_use_bird_release
-            utilities.__models_dir_path_already_patched__ = True
-
         if os.name == 'nt': # if Windows
             multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'python.exe'))
 
     def create_neural_network(self):
         print("Neural network loading...")
-        import torch
         import deepforest
-        import deepforest.main
+        from deepforest import main
 
-        self.m = deepforest.main.deepforest()
-
+        # Load from checkpoint if provided (Lightning checkpoint recommended).
         if len(self.load_model_path) > 0:
-            self.m.use_release()
-            print("Using the neural network loaded from '{}'...".format(self.load_model_path))
-            self.m.model = torch.load(self.load_model_path)
+            print("Loading model checkpoint from '{}'...".format(self.load_model_path))
+            self.m = main.deepforest.load_from_checkpoint(self.load_model_path)
+            return
+
+        self.m = main.deepforest()
+        if self.use_neural_network_pretrained_on_birds:
+            print("Using the neural network pre-trained on birds...")
+            self.m.load_model(model_name="weecology/deepforest-bird", revision="main")
         else:
-            if self.use_neural_network_pretrained_on_birds:
-                # use neural network pre-trained on birds
-                print("Using the neural network pre-trained on birds...")
-                self.m.use_bird_release()
-            else:
-                # use neural network pre-trained on trees
-                print("Using the neural network pre-trained on trees...")
-                self.m.use_release()
+            print("Using the neural network pre-trained on trees...")
+            self.m.load_model(model_name="weecology/deepforest-tree", revision="main")
 
     def export_orthomosaic(self):
         import numpy as np
@@ -686,7 +538,7 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                 self.nepochs = thiz_dlg.max_epochs
                 self.pbar = thiz_dlg.trainPBar
                 self.thiz_dlg = thiz_dlg
-            def on_epoch_end(self, trainer, pl_module):
+            def on_train_epoch_end(self, trainer, pl_module):
                 self.nepochs_done += 1
                 self.pbar.setValue(self.nepochs_done * 100 / self.nepochs)
                 Metashape.app.update()
@@ -695,22 +547,41 @@ class DetectObjectsDlg(QtWidgets.QDialog):
 
         if torch.cuda.device_count() > 0:
             print("Using GPU...")
-            trainer_gpus = 1
-            trainer_auto_select_gpus = True
+            accelerator = "gpu"
+            devices = 1
         else:
             print("Using CPU (will be very slow)...")
-            trainer_gpus = 0
-            trainer_auto_select_gpus = False
+            accelerator = "cpu"
+            devices = 1
             torch.set_num_threads(multiprocessing.cpu_count())
 
-        trainer = Trainer(max_epochs=self.max_epochs, gpus=trainer_gpus, auto_select_gpus=trainer_auto_select_gpus, callbacks=[MyCallback(self)], checkpoint_callback=False, logger=False)
-        train_ds = self.m.load_dataset(annotations_file, root_dir=os.path.dirname(annotations_file))
-        trainer.fit(self.m, train_ds)
+        # DeepForest checks that config.train.csv_file is set at fit start.
+        self.m.config.train.csv_file = annotations_file
+        self.m.config.train.root_dir = os.path.dirname(annotations_file)
+        self.m.config.train.epochs = self.max_epochs
+
+        # Disable DF internal augmentations (we already generate augmented tiles ourselves).
+        try:
+            self.m.config.train.augmentations = None
+        except Exception:
+            pass
+
+        trainer = Trainer(
+            max_epochs=self.max_epochs,
+            accelerator=accelerator,
+            devices=devices,
+            logger=False,
+            enable_checkpointing=False,
+            callbacks=[MyCallback(self)],
+        )
+        self.m.trainer = trainer
+        trainer.fit(self.m)
 
         self.results_time_training = time.time() - training_start
 
         if len(self.save_model_path) > 0:
-            torch.save(self.m.model, self.save_model_path)
+            # Save Lightning checkpoint (recommended for re-loading with load_from_checkpoint).
+            self.m.save_model(self.save_model_path)
             print("Model trained on {} annotations with {} m/pix resolution saved to '{}'".format(self.train_nannotations_in_zones, self.orthomosaic_resolution, self.save_model_path))
 
     def create_empty_tile(self):
@@ -941,7 +812,11 @@ class DetectObjectsDlg(QtWidgets.QDialog):
                     white_pixels_fraction = np.sum(np.all(subtile == 255, axis=-1)) / (subtile.shape[0] * subtile.shape[1])
 
                     assert(subtile.shape == (self.patch_size, self.patch_size, 3))
-                    subtile_trees = self.m.predict_image(subtile.astype('float32'))
+                    # DeepForest predict_image expects RGB float32 array. :contentReference[oaicite:6]{index=6}
+                    subtile_rgb = cv2.cvtColor(subtile, cv2.COLOR_BGR2RGB).astype("float32")
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", category=UserWarning)
+                        subtile_trees = self.m.predict_image(image=subtile_rgb)
                     Metashape.app.update()
                     app.processEvents()
                     self.check_stopped()
@@ -1335,15 +1210,15 @@ class DetectObjectsDlg(QtWidgets.QDialog):
         if load_path is not None:
             models_dir = str(pathlib.Path(load_path).parent)
 
-        save_path = Metashape.app.getSaveFileName("Trained model save path", models_dir, "*.model;;PyTorch Model (*.pth)")
+        save_path = Metashape.app.getSaveFileName("Trained model save path", models_dir, "*.ckpt;;Lightning Checkpoint (*.ckpt);;All Files (*.*)")
         ext = save_path.split(".")[-1]
-        if len(save_path) > 0 and ext != "model" and ext != "pth":
-            save_path += ".model"
+        if len(save_path) > 0 and ext != "ckpt":
+            save_path += ".ckpt"
 
         self.edtModelSavePath.setText(save_path)
 
     def choose_model_load_path(self):
-        load_path = Metashape.app.getOpenFileName("Trained model load path", "", "All Formats (*.model *.pth);;*.model;;PyTorch Model (*.pth)")
+        load_path = Metashape.app.getOpenFileName("Trained model load path", "", "All Formats (*.ckpt);;Lightning Checkpoint (*.ckpt);;All Files (*.*)")
         self.edtModelLoadPath.setText(load_path)
 
     def readModelLoadPathFromSettings(self):
