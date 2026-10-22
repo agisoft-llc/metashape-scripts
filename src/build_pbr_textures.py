@@ -1,6 +1,42 @@
 # Builds physically based rendering (PBR) textures from a set of aligned
 # photos and a UV-mapped mesh: albedo, roughness, metallic and normal maps.
 #
+# How to use:
+#
+# 1. In a dark room with no other lighting, photograph the object with the
+#    camera flash (for example, a phone camera flash).
+#    - Keep the flash in the same position relative to the camera for every
+#      shot.
+#    - Disable automatic image rotation on the camera.
+#    - The flash reflections at that fixed position let the script estimate
+#      the PBR material.
+# 2. Add the photos to Metashape Professional. Scripts are not available in
+#    Metashape Standard.
+# 3. Run Workflow -> Align Photos to find the relative locations of the photos.
+# 4. Run Workflow -> Build Model to create the mesh.
+# 5. Download this script from
+#    https://github.com/agisoft-llc/metashape-scripts/blob/master/src/build_pbr_textures.py
+#    (the Download button is at the top right).
+# 6. In Metashape, run Scripts -> Run Script (Ctrl+R) and select the
+#    downloaded build_pbr_textures.py.
+# 7. Open Scripts -> Build PBR textures.
+# 8. Leave "Fit light before building" enabled (it is on by default). It
+#    calibrates the flash position and intensity before the build and turns
+#    itself off after a successful fit. If the light is already calibrated,
+#    you can disable it.
+# 9. Start the build and select an output folder when asked. The script writes:
+#    - normal.png: tangent-space normal map.
+#    - albedo.png: base color without lighting.
+#    - roughness.png: surface roughness.
+#    - metallic.png: metalness.
+#    - photo_errors_x5.png: debug map showing the optimized photo error
+#      (multiplied by 5 for visibility).
+#    - witness_coverage.png: debug map showing how much observation
+#      coverage each texel received (brighter means more reliable).
+#    Optional baked position/normal/tangent maps are written to baked/ when
+#    "Save baked maps" is enabled. If the UV map is rebuilt, save the project
+#    when prompted so the maps and the rebuilt model stay in sync.
+#
 # The model's world-space positions, normals and tangents are rasterized into
 # the mesh's UV space on the CPU. An OpenCL pipeline then gathers per-texel
 # "witnesses" (the photo sample, view/light directions and visibility for every
