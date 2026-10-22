@@ -8,19 +8,23 @@
 # optional light fit first calibrates the flash multiplier and camera-space
 # offset using low-resolution discovery-only test builds.
 #
-# An OpenCL device and NumPy are required.
+# An OpenCL device and NumPy are required. If NumPy is missing, the script
+# offers to install it into the Metashape user packages folder with pip.
 #
 # This is python script for Metashape Pro. Scripts repository: https://github.com/agisoft-llc/metashape-scripts
 
 import contextlib
 import ctypes
 import ctypes.util
-import glob
+import importlib
 import json
 import math
 import os
 import shutil
+import site
+import subprocess
 import sys
+import sysconfig
 import tempfile
 import time
 import traceback
@@ -28,13 +32,140 @@ import traceback
 import Metashape
 from PySide2 import QtCore, QtWidgets
 
-try:
-    import numpy as np
-except ImportError as error:
-    raise ImportError(
-        "This script requires NumPy. Install it for the Metashape Python "
-        "interpreter (for example with `pip install numpy`) and restart Metashape."
-    ) from error
+
+def _user_packages_base():
+    """Metashape's per-interpreter user site base, or None if unavailable."""
+    try:
+        location = QtCore.QStandardPaths.writableLocation(
+            QtCore.QStandardPaths.DataLocation
+        )
+    except Exception:
+        return None
+    if not location:
+        return None
+    return os.path.join(
+        location,
+        f"user-packages-py{sys.version_info.major}{sys.version_info.minor}",
+    )
+
+
+def _user_site(base):
+    scheme = sysconfig.get_preferred_scheme("user")
+    return sysconfig.get_path("purelib", scheme=scheme, vars={"userbase": base})
+
+
+def _dependency_message(title, text, critical=False):
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        print(text, file=sys.stderr, flush=True)
+        return
+    parent = app.activeWindow()
+    if critical:
+        QtWidgets.QMessageBox.critical(parent, title, text)
+    else:
+        QtWidgets.QMessageBox.information(parent, title, text)
+
+
+def _confirm_numpy_install():
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        return False
+    answer = QtWidgets.QMessageBox.question(
+        app.activeWindow(),
+        "Build PBR textures",
+        "NumPy is required to build PBR textures. Install it now with pip?\n\n"
+        "The package will be downloaded from PyPI into the Metashape user "
+        "packages folder.",
+        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        QtWidgets.QMessageBox.No,
+    )
+    return answer == QtWidgets.QMessageBox.Yes
+
+
+def _install_numpy():
+    base = _user_packages_base()
+    if base is None:
+        _dependency_message(
+            "Build PBR textures",
+            "The Metashape user packages folder is unavailable; NumPy cannot be "
+            "installed automatically.",
+            critical=True,
+        )
+        return False
+    try:
+        os.makedirs(base, exist_ok=True)
+    except OSError as error:
+        _dependency_message(
+            "Build PBR textures",
+            f"Could not create the Metashape user packages folder:\n\n{error}",
+            critical=True,
+        )
+        return False
+
+    environment = os.environ.copy()
+    environment["PYTHONUSERBASE"] = base
+    command = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--user",
+        "--disable-pip-version-check",
+        "--no-warn-script-location",
+        "numpy",
+    ]
+    try:
+        result = subprocess.run(
+            command, env=environment, capture_output=True, text=True
+        )
+    except OSError as error:
+        _dependency_message(
+            "Build PBR textures",
+            f"Could not start pip:\n\n{error}",
+            critical=True,
+        )
+        return False
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout or "").strip()
+        _dependency_message(
+            "Build PBR textures",
+            "NumPy could not be installed.\n\n" + details[-4000:],
+            critical=True,
+        )
+        return False
+    if result.stdout:
+        print(result.stdout.strip(), flush=True)
+    importlib.invalidate_caches()
+    try:
+        site.addsitedir(_user_site(base))
+    except Exception:
+        traceback.print_exc()
+    return True
+
+
+def _import_numpy():
+    try:
+        import numpy
+
+        return numpy
+    except ImportError:
+        pass
+    if not _confirm_numpy_install():
+        return None
+    if not _install_numpy():
+        return None
+    try:
+        import numpy
+    except ImportError as error:
+        _dependency_message(
+            "Build PBR textures",
+            "NumPy was installed but could not be imported.\n\n"
+            f"{error}\n\nRestart Metashape and try again.",
+            critical=True,
+        )
+        return None
+    return numpy
+
 
 compatible_major_version = "2.3"
 found_major_version = ".".join(Metashape.app.version.split(".")[:2])
@@ -42,6 +173,11 @@ if found_major_version != compatible_major_version:
     raise Exception(
         f"Incompatible Metashape version: {found_major_version} != {compatible_major_version}"
     )
+
+np = _import_numpy()
+if np is None:
+    print("NumPy is required; the script was not started.", flush=True)
+    raise SystemExit(0)
 
 DEFAULT_BAKE_SIZE = 1024
 MAX_BAKE_SIZE = 8192
@@ -109,33 +245,33 @@ def _check_cancel(cancel):
 
 def _opencl_candidates():
     candidates = []
-    if os.name == "nt":
-        system_root = os.environ.get("SystemRoot", r"C:\Windows")
-        candidates.append(os.path.join(system_root, "System32", "OpenCL.dll"))
-    library = ctypes.util.find_library("OpenCL")
-    if library:
-        candidates.append(library)
-    if os.name == "nt":
-        candidates.append("OpenCL.dll")
-    else:
-        candidates += ["libOpenCL.so.1", "libOpenCL.so"]
-    candidates += glob.glob("/nix/store/*ocl-icd*/lib/libOpenCL.so*")
-    return candidates
-
-
-def _load_library(candidate):
-    if os.name == "nt":
-        return ctypes.WinDLL(candidate, winmode=0x00000800)
-    return ctypes.CDLL(candidate)
+    configured = os.environ.get("OPENCL_LIBRARY")
+    if configured:
+        candidates.append(configured)
+    found = ctypes.util.find_library("OpenCL")
+    if found:
+        candidates.append(found)
+    candidates += [
+        "OpenCL.dll",
+        "libOpenCL.so.1",
+        "libOpenCL.so",
+        "libOpenCL.dylib",
+        "OpenCL.framework/OpenCL",
+    ]
+    unique = []
+    for candidate in candidates:
+        if candidate and candidate not in unique:
+            unique.append(candidate)
+    return unique
 
 
 def _load_opencl():
     for candidate in _opencl_candidates():
         try:
-            return _load_library(candidate)
+            return ctypes.CDLL(candidate)
         except OSError:
             continue
-    raise RuntimeError("OpenCL is not available (OpenCL.dll / libOpenCL.so not found)")
+    raise RuntimeError("OpenCL is not available (no OpenCL library could be loaded)")
 
 
 def _opencl():
@@ -317,8 +453,15 @@ def _check_allocation(device, sizes, existing=0):
 _CL_SHARED = {}
 
 
+def _device_key(device):
+    if isinstance(device, int):
+        return device
+    value = ctypes.cast(device, _CL_POINTER).value
+    return int(value) if value is not None else 0
+
+
 def _shared_cl(device):
-    key = int(ctypes.cast(device, _CL_POINTER).value)
+    key = _device_key(device)
     if key not in _CL_SHARED:
         cl = _opencl()
         error = _CL_INT(0)
@@ -611,9 +754,7 @@ def _mesh_arrays(model):
         texels = face.tex_vertices
         faces[i] = (indices[0], indices[1], indices[2])
         tex_indices[i] = (
-            (texels[0], texels[1], texels[2])
-            if texels is not None
-            else (-1, -1, -1)
+            (texels[0], texels[1], texels[2]) if texels is not None else (-1, -1, -1)
         )
 
     tex_coords = np.empty((len(model.tex_vertices), 2), np.float32)
@@ -703,6 +844,7 @@ def _bake_geometry(model, size, report=None, cancel=None):
     tri_positions = vertices[faces[valid]]
     tri_normals = normals[faces[valid]]
     tri_tangents = tangents[tex_indices[valid]]
+    del vertices, faces, tex_indices, tex_coords, normals, tangents
 
     positions = np.full((size, size, 3), np.nan, np.float32)
     normal_map = np.full((size, size, 3), np.nan, np.float32)
@@ -742,35 +884,40 @@ def _bake_geometry(model, size, report=None, cancel=None):
         if min_x > max_x or min_y > max_y:
             continue
 
-        rows, cols = np.mgrid[min_y : max_y + 1, min_x : max_x + 1]
-        px = cols + 0.5
-        py = rows + 0.5
-        w0 = (
-            (x1[triangle] - px) * (y2[triangle] - py)
-            - (x2[triangle] - px) * (y1[triangle] - py)
-        ) / double_area
-        w1 = (
-            (x2[triangle] - px) * (y0[triangle] - py)
-            - (x0[triangle] - px) * (y2[triangle] - py)
-        ) / double_area
-        w2 = 1.0 - w0 - w1
-        inside = (w0 >= -1e-4) & (w1 >= -1e-4) & (w2 >= -1e-4)
-        if not inside.any():
-            continue
+        width = max_x - min_x + 1
+        rows_per_chunk = max(1, (1 << 20) // max(1, width))
+        for row_start in range(min_y, max_y + 1, rows_per_chunk):
+            _check_cancel(cancel)
+            row_end = min(row_start + rows_per_chunk, max_y + 1)
+            rows, cols = np.mgrid[row_start:row_end, min_x : max_x + 1]
+            px = cols + 0.5
+            py = rows + 0.5
+            w0 = (
+                (x1[triangle] - px) * (y2[triangle] - py)
+                - (x2[triangle] - px) * (y1[triangle] - py)
+            ) / double_area
+            w1 = (
+                (x2[triangle] - px) * (y0[triangle] - py)
+                - (x0[triangle] - px) * (y2[triangle] - py)
+            ) / double_area
+            w2 = 1.0 - w0 - w1
+            inside = (w0 >= -1e-4) & (w1 >= -1e-4) & (w2 >= -1e-4)
+            if not inside.any():
+                continue
 
-        selected_rows = rows[inside]
-        selected_cols = cols[inside]
-        weights = np.stack([w0[inside], w1[inside], w2[inside]], axis=-1)
+            selected_rows = rows[inside]
+            selected_cols = cols[inside]
+            weights = np.stack([w0[inside], w1[inside], w2[inside]], axis=-1)
 
-        positions[selected_rows, selected_cols] = weights @ tri_positions[triangle]
-        normal = weights @ tri_normals[triangle]
-        lengths = np.linalg.norm(normal, axis=-1, keepdims=True)
-        lengths[lengths == 0.0] = 1.0
-        normal_map[selected_rows, selected_cols] = normal / lengths
-        tangent = weights @ tri_tangents[triangle]
-        lengths = np.linalg.norm(tangent, axis=-1, keepdims=True)
-        lengths[lengths == 0.0] = 1.0
-        tangent_map[selected_rows, selected_cols] = tangent / lengths
+            positions[selected_rows, selected_cols] = weights @ tri_positions[triangle]
+            normal = weights @ tri_normals[triangle]
+            lengths = np.linalg.norm(normal, axis=-1, keepdims=True)
+            lengths[lengths == 0.0] = 1.0
+            normal_map[selected_rows, selected_cols] = normal / lengths
+            tangent = weights @ tri_tangents[triangle]
+            lengths = np.linalg.norm(tangent, axis=-1, keepdims=True)
+            lengths[lengths == 0.0] = 1.0
+            tangent_map[selected_rows, selected_cols] = tangent / lengths
 
     if not np.isfinite(positions[..., 0]).any():
         raise RuntimeError("The model has no valid UV texels to bake.")
@@ -838,11 +985,14 @@ class _StagedPngSet:
         self._staged = []
         self._backups = []
         self._placed = []
+        self._created_dirs = []
         self._finished = False
         try:
             for path, image in files:
                 directory = os.path.dirname(path) or "."
-                os.makedirs(directory, exist_ok=True)
+                if not os.path.isdir(directory):
+                    os.makedirs(directory, exist_ok=True)
+                    self._created_dirs.append(directory)
                 if os.path.isdir(path):
                     raise RuntimeError(f"Output path is a directory: {path}")
                 if os.path.lexists(path) and not (
@@ -914,6 +1064,11 @@ class _StagedPngSet:
                 _remove_file(path)
         for temp_path, _path in self._staged:
             _remove_file(temp_path)
+        for directory in reversed(self._created_dirs):
+            try:
+                os.rmdir(directory)
+            except OSError:
+                pass
         _fsync_directories([path for _temp_path, path in self._staged])
 
 
@@ -2127,9 +2282,7 @@ class Optimizer(_OpenCLProgram):
                 self._cell_bytes = 0
                 self._cell_capacity = 0
             cell_bytes = int(prefix.nbytes)
-            _check_allocation(
-                self._device, [cell_bytes], existing=self._resident_bytes
-            )
+            _check_allocation(self._device, [cell_bytes], existing=self._resident_bytes)
             self._cell_start = self._buffer(cell_bytes, CL_MEM_READ_ONLY)
             self._cell_capacity = prefix.size
             self._cell_bytes = cell_bytes
@@ -2183,9 +2336,7 @@ class Optimizer(_OpenCLProgram):
         normal[:, :3] = INITIAL_NORMAL
         normal[:, 3] = 1.0
         self._write(self._albedo, albedo)
-        self._write(
-            self._roughness, np.full(n, INITIAL_ROUGHNESS, np.float32)
-        )
+        self._write(self._roughness, np.full(n, INITIAL_ROUGHNESS, np.float32))
         self._write(self._metallic, np.full(n, INITIAL_METALLIC, np.float32))
         self._write(self._normal, normal)
         self._write(self._errors, np.zeros((n, 4), np.float32))
@@ -2425,9 +2576,7 @@ def _render_depth(model, camera):
         raise RuntimeError("renderDepth returned no image")
     array = _image_to_array(image)
     if array.shape[2] < 2:
-        raise RuntimeError(
-            f"Depth image has {array.shape[2]} channels, expected 2"
-        )
+        raise RuntimeError(f"Depth image has {array.shape[2]} channels, expected 2")
     return array[:, :, :2].astype(np.float32)
 
 
@@ -2481,9 +2630,7 @@ def _gather(
     pixel_count = size * size
     if not cameras:
         return None, None, None, None
-    flat_positions = np.ascontiguousarray(
-        positions.reshape(-1, 3), dtype=np.float32
-    )
+    flat_positions = np.ascontiguousarray(positions.reshape(-1, 3), dtype=np.float32)
     flat_normals = np.ascontiguousarray(normals.reshape(-1, 3), dtype=np.float32)
     radius = _bounds_radius(flat_positions)
     intensity = light_multiplier * radius * radius
@@ -2506,12 +2653,12 @@ def _gather(
                     (camera_number - 1) / len(cameras),
                     f"Gathering witnesses: {label}",
                 )
-            calibration = camera.sensor.calibration
-            cam_w, cam_h = int(calibration.width), int(calibration.height)
             try:
+                calibration = camera.sensor.calibration
+                cam_w, cam_h = int(calibration.width), int(calibration.height)
                 photo = _load_photo(camera)
                 depth = _render_depth(model, camera)
-            except RuntimeError as error:
+            except Exception as error:
                 print(
                     f"Gather {camera_number}/{len(cameras)}: {label}: {error}, skipping",
                     flush=True,
@@ -2529,10 +2676,19 @@ def _gather(
                     flush=True,
                 )
                 continue
-            lut, lut_grid, lut_smin, lut_sspan, lut_tmin, lut_tspan = _projection_lut(
-                camera, cancel
-            )
-            cam_pos, right, up, forward = _camera_axes(camera)
+            try:
+                lut, lut_grid, lut_smin, lut_sspan, lut_tmin, lut_tspan = (
+                    _projection_lut(camera, cancel)
+                )
+                cam_pos, right, up, forward = _camera_axes(camera)
+            except _Cancelled:
+                raise
+            except Exception as error:
+                print(
+                    f"Gather {camera_number}/{len(cameras)}: {label}: {error}, skipping",
+                    flush=True,
+                )
+                continue
             light_pos = _light_position(cam_pos, right, up, forward, light_offset)
             image_lights[camera_number - 1, 0:3] = cam_pos
             image_lights[camera_number - 1, 3:6] = light_pos
@@ -2585,6 +2741,7 @@ def _gather(
                 occlusion_radius,
             )
             gathered += 1
+            del photo, depth, lut, params
             print(
                 f"Gather {camera_number}/{len(cameras)}: {label} ({time.time() - started:.2f}s)",
                 flush=True,
@@ -2608,9 +2765,7 @@ def _gather(
 
 
 def _save_coverage(out_dir, coverage):
-    _save_png_set(
-        [(os.path.join(out_dir, "witness_coverage.png"), _as_rgb(coverage))]
-    )
+    _save_png_set([(os.path.join(out_dir, "witness_coverage.png"), _as_rgb(coverage))])
     print("Witness coverage saved to: " + out_dir)
 
 
@@ -2784,9 +2939,7 @@ def _discovery_map_files(
         ),
     ]
     if coverage is not None:
-        files.append(
-            (os.path.join(out_dir, "witness_coverage.png"), _as_rgb(coverage))
-        )
+        files.append((os.path.join(out_dir, "witness_coverage.png"), _as_rgb(coverage)))
     files.extend(extra)
     return files
 
@@ -3198,22 +3351,47 @@ class ProgressDialog(QtWidgets.QDialog):
 
 
 class _ConsoleTee:
+    _MAX_BUFFER = 1 << 16
+
     def __init__(self, stream, callback):
         self._stream = stream
         self._callback = callback
         self._buffer = ""
 
+    def __getattr__(self, name):
+        stream = self.__dict__.get("_stream")
+        if stream is None:
+            raise AttributeError(name)
+        return getattr(stream, name)
+
     def write(self, text):
+        if not isinstance(text, str):
+            text = str(text)
         if self._stream is not None:
             self._stream.write(text)
         self._buffer += text
         while "\n" in self._buffer:
             line, self._buffer = self._buffer.split("\n", 1)
             self._callback(line)
+        if len(self._buffer) > self._MAX_BUFFER:
+            self._buffer = self._buffer[-self._MAX_BUFFER :]
+        return len(text)
 
     def flush(self):
         if self._stream is not None:
             self._stream.flush()
+
+
+def _delete_widget(widget):
+    """Deletes a Qt widget immediately, even when the app is about to quit."""
+    if widget is None:
+        return
+    widget.deleteLater()
+    app = QtWidgets.QApplication.instance()
+    if app is not None:
+        app.processEvents()
+        QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.DeferredDelete)
+        app.processEvents()
 
 
 @contextlib.contextmanager
@@ -3233,7 +3411,7 @@ def _progress_session(parent):
                 progress.close()
             finally:
                 sys.stdout = original_stdout
-                progress.deleteLater()
+                _delete_widget(progress)
 
 
 def _power_combo(values, default):
@@ -3358,10 +3536,12 @@ class BakeDialog(QtWidgets.QDialog):
             "Discovery only (skip blur and refinement)"
         )
         self.discovery_only_check.setChecked(False)
-        self.fit_light_button = QtWidgets.QPushButton("Fit light")
-        self.fit_light_button.setToolTip(
+        self.fit_light_check = QtWidgets.QCheckBox("Fit light before building")
+        self.fit_light_check.setChecked(True)
+        self.fit_light_check.setToolTip(
             "Run low-resolution discovery-only test builds to calibrate the light "
-            "multiplier and offset, and update the fields above. Does not start the build."
+            "multiplier and offset before the main build. The option is turned off "
+            "after a successful fit."
         )
         self.ambient_spin = QtWidgets.QDoubleSpinBox()
         self.ambient_spin.setRange(0.0, 1.0)
@@ -3457,7 +3637,7 @@ class BakeDialog(QtWidgets.QDialog):
         dataset_form.addRow("Light offset Y:", self.light_y_spin)
         dataset_form.addRow("Light offset Z:", self.light_z_spin)
         dataset_form.addRow("Ambient:", self.ambient_spin)
-        dataset_form.addRow(self.fit_light_button)
+        dataset_form.addRow(self.fit_light_check)
 
         witness_form = QtWidgets.QFormLayout()
         witness_form.addRow("Max witnesses per texel:", self.witness_cmb)
@@ -3519,8 +3699,25 @@ class BakeDialog(QtWidgets.QDialog):
         exporting_box = CollapsibleBox("Exporting")
         exporting_box.setContentLayout(exporting_form)
 
+        instructions = QtWidgets.QLabel(
+            "Use aligned photos and a UV-mapped mesh. "
+            "Enable <i>Rebuild UVs</i> if the model has no UV map. "
+            "Only a single texture page is supported. "
+            "Light fitting and texture building assumes one point-like "
+            "light that is fixed to the camera, such as the camera flash. "
+            "The object should be mainly lit by that light. "
+            "Other lights, strong ambient light, or bright surroundings reduce the quality of the result. "
+            "Light fitting runs automatically before the build and turns itself off after a successful fit."
+        )
+        instructions.setWordWrap(True)
+        instructions.setTextFormat(QtCore.Qt.RichText)
+        instructions.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        instructions.setFrameShadow(QtWidgets.QFrame.Sunken)
+        instructions.setMargin(6)
+
         content = QtWidgets.QWidget()
         content_layout = QtWidgets.QVBoxLayout(content)
+        content_layout.addWidget(instructions)
         content_layout.addLayout(form)
         content_layout.addWidget(uv_box)
         content_layout.addWidget(dataset_box)
@@ -3603,6 +3800,7 @@ class BakeDialog(QtWidgets.QDialog):
             "use_long_bb": self.use_long_bb,
             "tile_pixels": self.tile_pixels,
             "discovery_only": self.discovery_only,
+            "fit_light": self.fit_light,
         }
 
     def apply_settings(self, data):
@@ -3668,6 +3866,7 @@ class BakeDialog(QtWidgets.QDialog):
             ("export_baked", self.export_baked_check),
             ("use_long_bb", self.long_bb_check),
             ("discovery_only", self.discovery_only_check),
+            ("fit_light", self.fit_light_check),
         ):
             if key in data:
                 widget.setChecked(bool(data[key]))
@@ -3753,6 +3952,10 @@ class BakeDialog(QtWidgets.QDialog):
         return self.discovery_only_check.isChecked()
 
     @property
+    def fit_light(self):
+        return self.fit_light_check.isChecked()
+
+    @property
     def ambient(self):
         return self.ambient_spin.value()
 
@@ -3808,9 +4011,7 @@ class BakeDialog(QtWidgets.QDialog):
             try:
                 candidate = float(value)
             except ValueError:
-                raise ValueError(
-                    f"Invalid roughness candidate: {value!r}"
-                ) from None
+                raise ValueError(f"Invalid roughness candidate: {value!r}") from None
             if not math.isfinite(candidate):
                 raise ValueError(f"Invalid roughness candidate: {value!r}")
             candidates.append(candidate)
@@ -3830,10 +4031,14 @@ class BakeDialog(QtWidgets.QDialog):
 
 
 def _default_bake_size(model):
-    texture = model.getActiveTexture()
-    if texture is None:
-        return DEFAULT_BAKE_SIZE
-    return min(int(texture.image().width), MAX_BAKE_SIZE)
+    try:
+        texture = model.getActiveTexture()
+        image = texture.image() if texture is not None else None
+        if image is not None:
+            return min(int(image.width), MAX_BAKE_SIZE)
+    except Exception:
+        traceback.print_exc()
+    return DEFAULT_BAKE_SIZE
 
 
 def _model_label(model):
@@ -3888,11 +4093,12 @@ def _apply_uv_settings(chunk, model, dialog):
 
 def _discard_model_copy(chunk, copy, previous_active):
     try:
-        chunk.remove([copy])
+        chunk.model = previous_active
     except Exception:
         traceback.print_exc()
     try:
-        chunk.model = previous_active
+        if any(model.key == copy.key for model in chunk.models):
+            chunk.remove([copy])
     except Exception:
         traceback.print_exc()
 
@@ -4040,56 +4246,49 @@ def _load_build_settings(document, chunk):
 
 
 def _available_memory_bytes():
-    if os.name == "nt":
-        class MemoryStatus(ctypes.Structure):
-            _fields_ = [
-                ("length", ctypes.c_ulong),
-                ("memory_load", ctypes.c_ulong),
-                ("total_phys", ctypes.c_ulonglong),
-                ("avail_phys", ctypes.c_ulonglong),
-                ("total_page_file", ctypes.c_ulonglong),
-                ("avail_page_file", ctypes.c_ulonglong),
-                ("total_virtual", ctypes.c_ulonglong),
-                ("avail_virtual", ctypes.c_ulonglong),
-                ("avail_extended_virtual", ctypes.c_ulonglong),
-            ]
-
-        status = MemoryStatus()
-        status.length = ctypes.sizeof(status)
-        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
-            return int(status.avail_phys)
-        return None
-    try:
-        with open("/proc/meminfo", "r", encoding="ascii") as handle:
-            for line in handle:
-                if line.startswith("MemAvailable:"):
-                    return int(line.split()[1]) * 1024
-    except (OSError, ValueError):
-        pass
+    """Available physical memory, or None when the platform cannot report it."""
     try:
         pages = int(os.sysconf("SC_AVPHYS_PAGES"))
-        size = int(os.sysconf("SC_PAGE_SIZE"))
+        page_size = int(os.sysconf("SC_PAGE_SIZE"))
     except (AttributeError, OSError, ValueError):
         return None
-    return pages * size if pages > 0 and size > 0 else None
+    if pages <= 0 or page_size <= 0:
+        return None
+    return pages * page_size
 
 
-def _estimated_cpu_bytes(texel_count, cap, export_baked):
+def _estimated_cpu_bytes(texel_count, cap, export_baked, face_count=0, vertex_count=0):
     geometry = texel_count * 3 * 3 * 4
+    mesh = face_count * 3 * 3 * 4 + vertex_count * 3 * 4 * 2
+    dilation = texel_count * (3 * 4 + 1) * 2
     result_maps = texel_count * (16 + 4 + 4 + 16 + 16)
     pool = texel_count * cap * WITNESS_WORDS * 4
     scalars = texel_count * 4 * 2
-    rgb_maps = texel_count * 3 * 4 * 4
+    rgb_maps = texel_count * 3 * 4 * 6
     png_scratch = texel_count * (3 * 4 + 3 + 3)
+    blur_scratch = texel_count * 80
     baked = texel_count * 3 * 4 if export_baked else 0
-    return geometry + result_maps + pool + scalars + rgb_maps + png_scratch + baked
+    return (
+        geometry
+        + mesh
+        + dilation
+        + result_maps
+        + pool
+        + scalars
+        + rgb_maps
+        + png_scratch
+        + blur_scratch
+        + baked
+    )
 
 
-def _check_cpu_memory(texel_count, cap, export_baked):
+def _check_cpu_memory(texel_count, cap, export_baked, face_count=0, vertex_count=0):
     available = _available_memory_bytes()
     if available is None:
         return
-    required = _estimated_cpu_bytes(texel_count, cap, export_baked)
+    required = _estimated_cpu_bytes(
+        texel_count, cap, export_baked, face_count, vertex_count
+    )
     if required > available * 0.9:
         raise RuntimeError(
             f"Estimated CPU memory ({required / 2**30:.2f} GiB) exceeds 90% of "
@@ -4106,9 +4305,11 @@ def _preflight_build(
     light_count=0,
     max_camera_pixels=0,
     export_baked=False,
+    face_count=0,
+    vertex_count=0,
 ):
     texel_count = size * size
-    _check_cpu_memory(texel_count, cap, export_baked)
+    _check_cpu_memory(texel_count, cap, export_baked, face_count, vertex_count)
     tile_pixels = min(texel_count, max(1024, tile_pixels))
     sizes = _optimizer_buffer_sizes(
         texel_count,
@@ -4132,17 +4333,17 @@ def _preflight_build(
 def _bake(parent):
     chunk = Metashape.app.document.chunk
     if chunk is None or not chunk.models:
-        Metashape.app.messageBox("The active chunk has no model to bake.")
+        Metashape.app.messageBox("The active chunk has no models.")
         return
     models = [model for model in chunk.models if len(model.faces)]
     if not models:
-        Metashape.app.messageBox("The chunk has no model to bake.")
+        Metashape.app.messageBox("The chunk has no models.")
         return
 
     devices = _opencl_devices()
     if not devices:
         Metashape.app.messageBox(
-            "No OpenCL device found. Install a GPU driver with OpenCL support."
+            "No OpenCL devices found. Install a GPU driver with OpenCL support."
         )
         return
     device_names = [label for _, label in devices]
@@ -4163,74 +4364,40 @@ def _bake(parent):
     try:
         _run_bake(parent, chunk, models, devices, document, dialog)
     finally:
-        dialog.deleteLater()
+        _delete_widget(dialog)
+
+
+def _run_light_fit(parent, model, cameras, device, dialog):
+    try:
+        with _progress_session(parent) as progress:
+            fitter = _LightFitter(
+                model,
+                cameras,
+                device,
+                dialog,
+                progress.report,
+                cancel=progress.token,
+            )
+            multiplier, offset, error = fitter.run()
+            dialog.apply_light(multiplier, offset)
+            dialog.fit_light_check.setChecked(False)
+            print(
+                f"Fit light: multiplier={multiplier:.4f} "
+                f"offset=({offset[0]:.4f},{offset[1]:.4f},{offset[2]:.4f}) "
+                f"error={error:.4f}",
+                flush=True,
+            )
+    except _Cancelled:
+        print("Light fitting cancelled.", flush=True)
+        raise
+    except Exception:
+        traceback.print_exc()
+        Metashape.app.messageBox("Light fitting failed:\n\n" + traceback.format_exc())
+        return False
+    return True
 
 
 def _run_bake(parent, chunk, models, devices, document, dialog):
-    def run_fit_light():
-        model = models[dialog.model_index]
-        cameras = [
-            camera
-            for camera in chunk.cameras
-            if camera.transform is not None and camera.photo is not None
-        ]
-        if not cameras:
-            Metashape.app.messageBox(
-                "No aligned cameras in the chunk; cannot fit the light."
-            )
-            return
-        try:
-            dialog.roughness_candidates
-        except ValueError as error:
-            Metashape.app.messageBox(str(error))
-            return
-        device = devices[dialog.device_index][0]
-        previous_active = chunk.model
-        copy = None
-        fit_model = model
-        try:
-            if dialog.rebuild_uv:
-                copy = model.copy()
-                fit_model = copy
-            if not _apply_uv_settings(chunk, fit_model, dialog):
-                Metashape.app.messageBox(
-                    "The selected model has no UV map. Enable UV rebuilding before fitting the light."
-                )
-                return
-            if not _is_single_page(fit_model):
-                Metashape.app.messageBox(
-                    "This script bakes a single texture page, but the selected "
-                    "model uses multiple UV pages."
-                )
-                return
-            with _progress_session(dialog) as progress:
-                fitter = _LightFitter(
-                    fit_model,
-                    cameras,
-                    device,
-                    dialog,
-                    progress.report,
-                    cancel=progress.token,
-                )
-                multiplier, offset, error = fitter.run()
-                dialog.apply_light(multiplier, offset)
-                print(
-                    f"Fit light: multiplier={multiplier:.4f} offset=({offset[0]:.4f},{offset[1]:.4f},{offset[2]:.4f}) "
-                    f"error={error:.4f}"
-                )
-        except _Cancelled:
-            print("Light fitting cancelled.")
-        except Exception:
-            traceback.print_exc()
-            Metashape.app.messageBox(
-                "Light fitting failed:\n\n" + traceback.format_exc()
-            )
-        finally:
-            if copy is not None:
-                _discard_model_copy(chunk, copy, previous_active)
-
-    dialog.fit_light_button.clicked.connect(run_fit_light)
-
     if not dialog.exec_():
         return
 
@@ -4268,7 +4435,7 @@ def _run_bake(parent, chunk, models, devices, document, dialog):
     ]
     if not cameras:
         Metashape.app.messageBox(
-            "No aligned cameras in the chunk; cannot build textures."
+            "No aligned cameras found in the chunk. Textures cannot be built."
         )
         return
     if not dialog.rebuild_uv and len(model.tex_vertices) == 0:
@@ -4287,6 +4454,8 @@ def _run_bake(parent, chunk, models, devices, document, dialog):
             light_count=len(cameras),
             max_camera_pixels=_max_camera_pixels(cameras),
             export_baked=dialog.export_baked,
+            face_count=len(model.faces),
+            vertex_count=len(model.vertices),
         )
     except RuntimeError as error:
         Metashape.app.messageBox(str(error))
@@ -4311,6 +4480,10 @@ def _run_bake(parent, chunk, models, devices, document, dialog):
                 "model uses multiple UV pages."
             )
             return
+        if dialog.fit_light:
+            print("Fitting light before the build...", flush=True)
+            if not _run_light_fit(parent, build_model, cameras, device, dialog):
+                return
         with _progress_session(parent) as progress:
             light_multiplier = dialog.light_multiplier
             light_offset = dialog.light_offset
@@ -4324,9 +4497,7 @@ def _run_bake(parent, chunk, models, devices, document, dialog):
             print(f"Baked {int((~np.isnan(positions[..., 0])).sum())} valid texels")
             baked_files = []
             if dialog.export_baked:
-                baked_files = _baked_map_files(
-                    out_dir, positions, normals, tangents
-                )
+                baked_files = _baked_map_files(out_dir, positions, normals, tangents)
 
             print(
                 f"Gathering witnesses from {len(cameras)} cameras at {size}x{size}..."
