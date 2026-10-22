@@ -17,7 +17,9 @@ import ctypes
 import ctypes.util
 import glob
 import json
+import math
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -52,6 +54,7 @@ OUTPUT_FILES = (
     "normal.png",
     "photo_errors_x5.png",
 )
+BAKED_FILES = ("position.png", "normal.png", "tangent.png")
 
 MAPPING_MODES = (
     ("Generic", Metashape.MappingMode.GenericMapping),
@@ -104,16 +107,32 @@ def _check_cancel(cancel):
         cancel.check()
 
 
-def _load_opencl():
+def _opencl_candidates():
     candidates = []
+    if os.name == "nt":
+        system_root = os.environ.get("SystemRoot", r"C:\Windows")
+        candidates.append(os.path.join(system_root, "System32", "OpenCL.dll"))
     library = ctypes.util.find_library("OpenCL")
     if library:
         candidates.append(library)
-    candidates += ["OpenCL.dll", "libOpenCL.so.1", "libOpenCL.so"]
+    if os.name == "nt":
+        candidates.append("OpenCL.dll")
+    else:
+        candidates += ["libOpenCL.so.1", "libOpenCL.so"]
     candidates += glob.glob("/nix/store/*ocl-icd*/lib/libOpenCL.so*")
-    for candidate in candidates:
+    return candidates
+
+
+def _load_library(candidate):
+    if os.name == "nt":
+        return ctypes.WinDLL(candidate, winmode=0x00000800)
+    return ctypes.CDLL(candidate)
+
+
+def _load_opencl():
+    for candidate in _opencl_candidates():
         try:
-            return ctypes.CDLL(candidate)
+            return _load_library(candidate)
         except OSError:
             continue
     raise RuntimeError("OpenCL is not available (OpenCL.dll / libOpenCL.so not found)")
@@ -324,36 +343,55 @@ def _build_program(cl, context, device, source, kernel_name):
         context, 1, strings, lengths, ctypes.byref(error)
     )
     _check(error.value, "clCreateProgramWithSource")
-    result = cl.clBuildProgram(program, 1, (_CL_POINTER * 1)(device), None, None, None)
-    if result != CL_SUCCESS:
-        size = _CL_SIZE(0)
-        cl.clGetProgramBuildInfo(
-            program, device, CL_PROGRAM_BUILD_LOG, 0, None, ctypes.byref(size)
+    try:
+        result = cl.clBuildProgram(
+            program, 1, (_CL_POINTER * 1)(device), None, None, None
         )
-        log = ctypes.create_string_buffer(size.value)
-        cl.clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, size, log, None)
-        cl.clReleaseProgram(program)
-        raise RuntimeError(
-            f"OpenCL kernel '{kernel_name}' failed to build ({result}):\n{log.value.decode()}"
-        )
-    kernel = cl.clCreateKernel(program, kernel_name.encode(), ctypes.byref(error))
-    if error.value != CL_SUCCESS:
-        cl.clReleaseProgram(program)
+        if result != CL_SUCCESS:
+            size = _CL_SIZE(0)
+            cl.clGetProgramBuildInfo(
+                program, device, CL_PROGRAM_BUILD_LOG, 0, None, ctypes.byref(size)
+            )
+            log = ctypes.create_string_buffer(size.value)
+            cl.clGetProgramBuildInfo(
+                program, device, CL_PROGRAM_BUILD_LOG, size, log, None
+            )
+            raise RuntimeError(
+                f"OpenCL kernel '{kernel_name}' failed to build ({result}):\n"
+                f"{log.value.decode()}"
+            )
+        kernel = cl.clCreateKernel(program, kernel_name.encode(), ctypes.byref(error))
         _check(error.value, "clCreateKernel")
+    except BaseException:
+        cl.clReleaseProgram(program)
+        raise
     return program, kernel
+
+
+def _host_view(data):
+    if isinstance(data, np.ndarray):
+        view = np.ascontiguousarray(data)
+    else:
+        view = np.frombuffer(data, dtype=np.uint8)
+    return view, view.ctypes.data_as(_CL_POINTER), int(view.nbytes)
 
 
 def _create_buffer(cl, context, size, flags, data=None):
     error = _CL_INT(0)
     host = None
+    pointer = None
     if data is not None:
-        host = ctypes.create_string_buffer(data, len(data))
+        host, pointer, nbytes = _host_view(data)
+        if nbytes != size:
+            raise RuntimeError(
+                f"Buffer data is {nbytes} bytes but the allocation is {size} bytes"
+            )
         flags |= CL_MEM_COPY_HOST_PTR
     memory = cl.clCreateBuffer(
         context,
         flags,
         size,
-        ctypes.cast(host, _CL_POINTER) if host is not None else None,
+        pointer if host is not None else None,
         ctypes.byref(error),
     )
     _check(error.value, "clCreateBuffer")
@@ -361,15 +399,15 @@ def _create_buffer(cl, context, size, flags, data=None):
 
 
 def _write_buffer(cl, queue, memory, data):
-    host = ctypes.create_string_buffer(data, len(data))
+    host, pointer, nbytes = _host_view(data)
     _check(
         cl.clEnqueueWriteBuffer(
             queue,
             memory,
             1,
             0,
-            len(data),
-            ctypes.cast(host, _CL_POINTER),
+            nbytes,
+            pointer,
             0,
             None,
             None,
@@ -379,7 +417,10 @@ def _write_buffer(cl, queue, memory, data):
 
 
 def _read_buffer(cl, queue, memory, size, dtype):
-    output = (ctypes.c_char * size)()
+    dtype = np.dtype(dtype)
+    if size % dtype.itemsize:
+        raise RuntimeError(f"Buffer size {size} is not a multiple of {dtype}")
+    output = np.empty(size // dtype.itemsize, dtype=dtype)
     _check(
         cl.clEnqueueReadBuffer(
             queue,
@@ -387,7 +428,7 @@ def _read_buffer(cl, queue, memory, size, dtype):
             1,
             0,
             size,
-            ctypes.cast(output, _CL_POINTER),
+            output.ctypes.data_as(_CL_POINTER),
             0,
             None,
             None,
@@ -395,7 +436,7 @@ def _read_buffer(cl, queue, memory, size, dtype):
         "clEnqueueReadBuffer",
     )
     _finish(cl, queue)
-    return np.frombuffer(bytes(output), dtype=dtype)
+    return output
 
 
 class _Kernel:
@@ -533,8 +574,12 @@ def _opencl_devices():
     return devices
 
 
+def _texture_page(face):
+    return face.tex_index or 0
+
+
 def _is_single_page(model):
-    return all(face.tex_index <= 0 for face in model.faces)
+    return all(_texture_page(face) <= 0 for face in model.faces)
 
 
 def _mesh_arrays(model):
@@ -557,7 +602,7 @@ def _mesh_arrays(model):
     faces = np.empty((face_count, 3), np.int32)
     tex_indices = np.empty((face_count, 3), np.int32)
     for i, face in enumerate(model.faces):
-        if face.tex_index > 0:
+        if _texture_page(face) > 0:
             raise RuntimeError(
                 "This script bakes a single texture page, but the selected "
                 "model uses multiple UV pages."
@@ -565,7 +610,11 @@ def _mesh_arrays(model):
         indices = face.vertices
         texels = face.tex_vertices
         faces[i] = (indices[0], indices[1], indices[2])
-        tex_indices[i] = (texels[0], texels[1], texels[2])
+        tex_indices[i] = (
+            (texels[0], texels[1], texels[2])
+            if texels is not None
+            else (-1, -1, -1)
+        )
 
     tex_coords = np.empty((len(model.tex_vertices), 2), np.float32)
     for i, vertex in enumerate(model.tex_vertices):
@@ -631,7 +680,7 @@ def _shift(array, dy, dx):
 
 def _dilate(image, iterations=10):
     filled = ~np.isnan(image[..., 0])
-    result = image.copy()
+    result = image
     for _ in range(iterations):
         if filled.all():
             break
@@ -723,6 +772,8 @@ def _bake_geometry(model, size, report=None, cancel=None):
         lengths[lengths == 0.0] = 1.0
         tangent_map[selected_rows, selected_cols] = tangent / lengths
 
+    if not np.isfinite(positions[..., 0]).any():
+        raise RuntimeError("The model has no valid UV texels to bake.")
     return _dilate(positions), _dilate(normal_map), _dilate(tangent_map)
 
 
@@ -731,55 +782,159 @@ def _as_rgb(image):
 
 
 def _save_array_png(path, image):
-    data = (np.clip(np.nan_to_num(image), 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
+    data = np.array(image, copy=True)
+    np.nan_to_num(data, copy=False)
+    np.clip(data, 0.0, 1.0, out=data)
+    data *= 255.0
+    data += 0.5
+    data = data.astype(np.uint8)
     Metashape.Image.fromstring(
         data.tobytes(), image.shape[1], image.shape[0], "RGB", "U8"
     ).save(path)
 
 
-def _save_png_set(files):
-    """Writes every (path, image) to temp files, then replaces the targets.
-
-    Staging keeps a failed write from leaving a mix of old and new maps.
-    """
-    staged = []
+def _remove_file(path):
     try:
-        for path, image in files:
-            directory = os.path.dirname(path) or "."
-            os.makedirs(directory, exist_ok=True)
-            handle, temp_path = tempfile.mkstemp(
-                prefix=".pbr-", suffix=".png", dir=directory
-            )
-            os.close(handle)
-            _save_array_png(temp_path, image)
-            staged.append((temp_path, path))
-        for temp_path, path in staged:
-            os.replace(temp_path, path)
-        staged = []
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def _fsync_path(path):
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    except OSError:
+        pass
     finally:
-        for temp_path, _path in staged:
+        os.close(descriptor)
+
+
+def _fsync_directories(paths):
+    for directory in {os.path.dirname(path) or "." for path in paths}:
+        _fsync_path(directory)
+
+
+def _backup_output(path, backup_path):
+    if os.path.islink(path):
+        target = os.readlink(path)
+        try:
+            os.unlink(backup_path)
+            os.symlink(target, backup_path)
+            return
+        except OSError:
+            pass
+    shutil.copy2(path, backup_path)
+    _fsync_path(backup_path)
+
+
+class _StagedPngSet:
+    """Stages a whole (path, image) set before placing any target."""
+
+    def __init__(self, files):
+        self._staged = []
+        self._backups = []
+        self._placed = []
+        self._finished = False
+        try:
+            for path, image in files:
+                directory = os.path.dirname(path) or "."
+                os.makedirs(directory, exist_ok=True)
+                if os.path.isdir(path):
+                    raise RuntimeError(f"Output path is a directory: {path}")
+                if os.path.lexists(path) and not (
+                    os.path.isfile(path) or os.path.islink(path)
+                ):
+                    raise RuntimeError(f"Output path is not a regular file: {path}")
+                handle, temp_path = tempfile.mkstemp(
+                    prefix=".pbr-", suffix=".png", dir=directory
+                )
+                os.close(handle)
+                self._staged.append((temp_path, path))
+                _save_array_png(temp_path, image)
+                _fsync_path(temp_path)
+        except BaseException:
+            self.rollback()
+            raise
+
+    def place(self):
+        if self._finished:
+            raise RuntimeError("Staged output set is already finished")
+        try:
+            for _temp_path, path in self._staged:
+                if os.path.lexists(path):
+                    handle, backup_path = tempfile.mkstemp(
+                        prefix=".pbr-bak-",
+                        suffix=".png",
+                        dir=os.path.dirname(path) or ".",
+                    )
+                    os.close(handle)
+                    try:
+                        _backup_output(path, backup_path)
+                    except BaseException:
+                        _remove_file(backup_path)
+                        raise
+                    self._backups.append((backup_path, path))
+            for temp_path, path in self._staged:
+                os.replace(temp_path, path)
+                self._placed.append(path)
+            _fsync_directories([path for _temp_path, path in self._staged])
+        except BaseException:
+            self.rollback()
+            raise
+
+    def commit(self):
+        if self._finished:
+            return
+        self._finished = True
+        for backup_path, _path in self._backups:
+            _remove_file(backup_path)
+        _fsync_directories([path for _temp_path, path in self._staged])
+
+    def rollback(self):
+        if self._finished:
+            return
+        self._finished = True
+        backup_targets = {path for _backup_path, path in self._backups}
+        for backup_path, path in self._backups:
+            if not os.path.lexists(backup_path):
+                continue
             try:
-                os.remove(temp_path)
-            except OSError:
-                pass
+                os.replace(backup_path, path)
+            except OSError as error:
+                print(
+                    f"Could not restore {path} from {backup_path}: {error}",
+                    flush=True,
+                )
+        for path in self._placed:
+            if path not in backup_targets:
+                _remove_file(path)
+        for temp_path, _path in self._staged:
+            _remove_file(temp_path)
+        _fsync_directories([path for _temp_path, path in self._staged])
 
 
-def _save_baked_maps(out_dir, positions, normals, tangents):
+def _save_png_set(files):
+    transaction = _StagedPngSet(files)
+    transaction.place()
+    transaction.commit()
+
+
+def _baked_map_files(out_dir, positions, normals, tangents):
     baked_dir = os.path.join(out_dir, "baked")
-    finite = positions[~np.isnan(positions[..., 0])]
-    if len(finite):
-        low = finite.min(axis=0)
-        span = finite.max(axis=0) - low
+    if not np.isnan(positions[..., 0]).all():
+        low = np.nanmin(positions, axis=(0, 1))
+        span = np.nanmax(positions, axis=(0, 1)) - low
         span[span == 0.0] = 1.0
         positions = (positions - low) / span
-    _save_png_set(
-        [
-            (os.path.join(baked_dir, "position.png"), positions),
-            (os.path.join(baked_dir, "normal.png"), normals * 0.5 + 0.5),
-            (os.path.join(baked_dir, "tangent.png"), tangents * 0.5 + 0.5),
-        ]
-    )
-    print("Baked maps saved to: " + baked_dir)
+    return [
+        (os.path.join(baked_dir, "position.png"), positions),
+        (os.path.join(baked_dir, "normal.png"), normals * 0.5 + 0.5),
+        (os.path.join(baked_dir, "tangent.png"), tangents * 0.5 + 0.5),
+    ]
 
 
 GATHER_DEPTH_EPS_ABS = 0.05
@@ -808,7 +963,7 @@ PROJECTION_LUT_GRID = 128
 PROJECTION_LUT_MARGIN = 1.5
 
 
-def _projection_lut(camera):
+def _projection_lut(camera, cancel=None):
     calibration = camera.sensor.calibration
     cam_w, cam_h = int(calibration.width), int(calibration.height)
     half_s = (cam_w * 0.5) / float(calibration.f)
@@ -821,6 +976,7 @@ def _projection_lut(camera):
     lut = np.empty((grid * grid * 2,), np.float32)
     transform = camera.transform
     for j in range(grid):
+        _check_cancel(cancel)
         t = t_min + t_span * j / (grid - 1)
         for i in range(grid):
             s = s_min + s_span * i / (grid - 1)
@@ -1070,6 +1226,7 @@ __kernel void expand(
     weights[gidx] = 0.0f;
     return;
   }
+  c = min(c, cap);
   size_t g = (size_t)gidx;
   float3 P = (float3)(positions[g * 3u], positions[g * 3u + 1u], positions[g * 3u + 2u]);
   float3 N = (float3)(normals[g * 3u], normals[g * 3u + 1u], normals[g * 3u + 2u]);
@@ -1605,6 +1762,7 @@ __kernel void optimize(
   uint gidx = tile_offset + idx;
   uint c = counts[gidx];
   if (c == 0u) return;
+  c = min(c, cap);
   uint base = idx * cap * 7u;
   float3 geom_normal = (float3)(normals[gidx * 3u], normals[gidx * 3u + 1u], normals[gidx * 3u + 2u]);
   float3 tangent = (float3)(tangents[gidx * 3u], tangents[gidx * 3u + 1u], tangents[gidx * 3u + 2u]);
@@ -1668,11 +1826,23 @@ __kernel void optimize(
 )
 
 
+def _witness_buffer_sizes(texel_count, cap):
+    return [
+        texel_count * 3 * 4,
+        texel_count * 3 * 4,
+        texel_count * 4,
+        texel_count * 4,
+        texel_count * cap * WITNESS_WORDS * 4,
+    ]
+
+
 class WitnessGatherer(_OpenCLProgram):
     """Runs the gather kernel once per camera into a shared per-texel pool."""
 
     def __init__(self, device, texel_count, cap):
         super().__init__(device)
+        if cap < 1:
+            raise ValueError("max_witnesses must be at least 1")
         self.texel_count = texel_count
         self.cap = cap
         self._program = None
@@ -1682,16 +1852,7 @@ class WitnessGatherer(_OpenCLProgram):
         self._counts = None
         self._weights = None
         self._pool = None
-        _check_allocation(
-            device,
-            [
-                texel_count * 3 * 4,
-                texel_count * 3 * 4,
-                texel_count * 4,
-                texel_count * 4,
-                texel_count * cap * WITNESS_WORDS * 4,
-            ],
-        )
+        _check_allocation(device, _witness_buffer_sizes(texel_count, cap))
         try:
             self._program, kernel = _build_program(
                 self._cl, self._context, device, GATHER_KERNEL, "gather"
@@ -1702,17 +1863,17 @@ class WitnessGatherer(_OpenCLProgram):
             self._counts = self._buffer(
                 texel_count * 4,
                 CL_MEM_READ_WRITE,
-                np.zeros(texel_count, np.uint32).tobytes(),
+                np.zeros(texel_count, np.uint32),
             )
             self._weights = self._buffer(
                 texel_count * 4,
                 CL_MEM_READ_WRITE,
-                np.zeros(texel_count, np.float32).tobytes(),
+                np.zeros(texel_count, np.float32),
             )
             self._pool = self._buffer(
                 texel_count * cap * WITNESS_WORDS * 4, CL_MEM_READ_WRITE
             )
-        except Exception:
+        except BaseException:
             self.destroy()
             raise
 
@@ -1733,11 +1894,16 @@ class WitnessGatherer(_OpenCLProgram):
         camera_index,
         occlusion_radius,
     ):
-        lut_memory = self._buffer(lut.nbytes, CL_MEM_READ_ONLY, lut.tobytes())
-        depth_memory = self._buffer(depth.nbytes, CL_MEM_READ_ONLY, depth.tobytes())
-        photo_memory = self._buffer(photo.nbytes, CL_MEM_READ_ONLY, photo.tobytes())
-        params_memory = self._buffer(params.nbytes, CL_MEM_READ_ONLY, params.tobytes())
+        temporary = []
         try:
+            lut_memory = self._buffer(lut.nbytes, CL_MEM_READ_ONLY, lut)
+            temporary.append(lut_memory)
+            depth_memory = self._buffer(depth.nbytes, CL_MEM_READ_ONLY, depth)
+            temporary.append(depth_memory)
+            photo_memory = self._buffer(photo.nbytes, CL_MEM_READ_ONLY, photo)
+            temporary.append(photo_memory)
+            params_memory = self._buffer(params.nbytes, CL_MEM_READ_ONLY, params)
+            temporary.append(params_memory)
             kernel = self._gather
             kernel.set_buffer(0, self._positions)
             kernel.set_buffer(1, self._normals)
@@ -1759,7 +1925,7 @@ class WitnessGatherer(_OpenCLProgram):
             kernel.set_uint(17, camera_index)
             kernel.launch(((self.texel_count + 63) // 64) * 64)
         finally:
-            for memory in (lut_memory, depth_memory, photo_memory, params_memory):
+            for memory in temporary:
                 self._cl.clReleaseMemObject(memory)
 
     def coverage(self):
@@ -1830,11 +1996,44 @@ def _build_spatial_hash(positions, sigma):
     return grid.astype(np.int32), origin.astype(np.float32), float(cell), prefix, items
 
 
+def _max_spatial_hash_bytes():
+    max_cells = (256 + 2) ** 3
+    return (max_cells + 1) * 4
+
+
+def _optimizer_buffer_sizes(texel_count, cap, cell_start_bytes=4, light_count=0):
+    """Bytes of every persistent buffer the optimizer allocates."""
+    return [
+        texel_count * 3 * 4,  # positions
+        texel_count * 3 * 4,  # normals
+        texel_count * 3 * 4,  # tangents
+        texel_count * cap * WITNESS_WORDS * 4,  # witness pool
+        texel_count * 4,  # counts
+        texel_count * 16,  # albedo
+        texel_count * 4,  # roughness
+        texel_count * 4,  # metallic
+        texel_count * 16,  # normal
+        texel_count * 16,  # errors
+        texel_count * 4,  # weights
+        20 * 4,  # candidates
+        9 * 4,  # params
+        texel_count * 16,  # dst albedo
+        texel_count * 4,  # dst roughness
+        texel_count * 4,  # dst metallic
+        texel_count * 16,  # dst normal
+        cell_start_bytes,  # cell start
+        texel_count * 4,  # cell items
+        light_count * 7 * 4,  # lights
+    ]
+
+
 class Optimizer(_OpenCLProgram):
     """The expand, discovery/refinement and blur kernels over the UV maps."""
 
     def __init__(self, device, texel_count, cap):
         super().__init__(device)
+        if cap < 1:
+            raise ValueError("max_witnesses must be at least 1")
         self.texel_count = texel_count
         self.cap = cap
         self._programs = ()
@@ -1864,29 +2063,12 @@ class Optimizer(_OpenCLProgram):
         self._cell_start = None
         self._cell_items = None
         self._cell_capacity = 0
+        self._cell_bytes = 4
         self._expanded = None
         self._tile_capacity = 0
-        sizes = [
-            texel_count * 3 * 4,
-            texel_count * 3 * 4,
-            texel_count * 3 * 4,
-            texel_count * cap * WITNESS_WORDS * 4,
-            texel_count * 4,
-            texel_count * 16,
-            texel_count * 4,
-            texel_count * 4,
-            texel_count * 16,
-            texel_count * 16,
-            texel_count * 4,
-            20 * 4,
-            9 * 4,
-            texel_count * 16,
-            texel_count * 4,
-            texel_count * 4,
-            texel_count * 16,
-            4,
-            texel_count * 4,
-        ]
+        self._expanded_bytes = 0
+        self._lights_bytes = 0
+        sizes = _optimizer_buffer_sizes(texel_count, cap)
         self._resident_bytes = sum(sizes)
         _check_allocation(device, sizes)
         try:
@@ -1928,7 +2110,7 @@ class Optimizer(_OpenCLProgram):
             self._cell_start = self._buffer(4, CL_MEM_READ_ONLY)
             self._cell_items = self._buffer(texel_count * 4, CL_MEM_READ_ONLY)
             self.reset_maps()
-        except Exception:
+        except BaseException:
             self.destroy()
             raise
 
@@ -1938,12 +2120,22 @@ class Optimizer(_OpenCLProgram):
             return False
         grid, origin, cell, prefix, items = _build_spatial_hash(positions, sigma)
         if self._cell_capacity < prefix.size:
-            if self._cell_capacity:
+            if self._cell_start is not None:
                 self._cl.clReleaseMemObject(self._cell_start)
-            self._cell_start = self._buffer(prefix.nbytes, CL_MEM_READ_ONLY)
+                self._cell_start = None
+                self._resident_bytes -= self._cell_bytes
+                self._cell_bytes = 0
+                self._cell_capacity = 0
+            cell_bytes = int(prefix.nbytes)
+            _check_allocation(
+                self._device, [cell_bytes], existing=self._resident_bytes
+            )
+            self._cell_start = self._buffer(cell_bytes, CL_MEM_READ_ONLY)
             self._cell_capacity = prefix.size
-        self._write(self._cell_start, prefix.tobytes())
-        self._write(self._cell_items, items.tobytes())
+            self._cell_bytes = cell_bytes
+            self._resident_bytes += cell_bytes
+        self._write(self._cell_start, prefix)
+        self._write(self._cell_items, items)
         _finish(self._cl, self._queue)
 
         kernel = self._blur
@@ -1990,42 +2182,58 @@ class Optimizer(_OpenCLProgram):
         normal = np.zeros((n, 4), np.float32)
         normal[:, :3] = INITIAL_NORMAL
         normal[:, 3] = 1.0
-        self._write(self._albedo, albedo.tobytes())
+        self._write(self._albedo, albedo)
         self._write(
-            self._roughness, np.full(n, INITIAL_ROUGHNESS, np.float32).tobytes()
+            self._roughness, np.full(n, INITIAL_ROUGHNESS, np.float32)
         )
-        self._write(self._metallic, np.full(n, INITIAL_METALLIC, np.float32).tobytes())
-        self._write(self._normal, normal.tobytes())
-        self._write(self._errors, np.zeros((n, 4), np.float32).tobytes())
+        self._write(self._metallic, np.full(n, INITIAL_METALLIC, np.float32))
+        self._write(self._normal, normal)
+        self._write(self._errors, np.zeros((n, 4), np.float32))
         _finish(self._cl, self._queue)
 
     def set_scene(self, positions, normals, tangents, lights, pool, counts):
-        self._write(self._positions, positions.tobytes())
-        self._write(self._normals, normals.tobytes())
-        self._write(self._tangents, tangents.tobytes())
+        self._write(self._positions, positions)
+        self._write(self._normals, normals)
+        self._write(self._tangents, tangents)
         self.set_lights(lights)
-        self._write(self._pool, pool.tobytes())
-        self._write(self._counts, counts.tobytes())
+        self._write(self._pool, pool)
+        self._write(self._counts, counts)
         _finish(self._cl, self._queue)
 
     def set_lights(self, lights):
-        if self._lights is None or self._lights_size != lights.nbytes:
+        light_bytes = int(lights.nbytes)
+        if self._lights is None or self._lights_size != light_bytes:
             if self._lights is not None:
                 self._cl.clReleaseMemObject(self._lights)
-            self._lights = self._buffer(lights.nbytes, CL_MEM_READ_ONLY)
-            self._lights_size = lights.nbytes
+                self._lights = None
+                self._resident_bytes -= self._lights_bytes
+                self._lights_bytes = 0
+                self._lights_size = 0
+            _check_allocation(
+                self._device, [light_bytes], existing=self._resident_bytes
+            )
+            self._lights = self._buffer(light_bytes, CL_MEM_READ_ONLY)
+            self._lights_size = light_bytes
+            self._lights_bytes = light_bytes
+            self._resident_bytes += light_bytes
         self._light_count = int(lights.shape[0])
-        self._write(self._lights, lights.tobytes())
+        self._write(self._lights, lights)
         _finish(self._cl, self._queue)
 
     def prepare_tile(self, tile_pixels):
         if self._expanded is None or self._tile_capacity < tile_pixels:
             size = tile_pixels * self.cap * 7 * 4
-            _check_allocation(self._device, [size], existing=self._resident_bytes)
             if self._expanded is not None:
                 self._cl.clReleaseMemObject(self._expanded)
-            self._tile_capacity = tile_pixels
+                self._expanded = None
+                self._resident_bytes -= self._expanded_bytes
+                self._expanded_bytes = 0
+                self._tile_capacity = 0
+            _check_allocation(self._device, [size], existing=self._resident_bytes)
             self._expanded = self._buffer(size, CL_MEM_READ_WRITE)
+            self._tile_capacity = tile_pixels
+            self._expanded_bytes = size
+            self._resident_bytes += size
 
     def expand_tile(self, tile_offset, tile_count, shading_gate):
         kernel = self._expand
@@ -2049,7 +2257,12 @@ class Optimizer(_OpenCLProgram):
         kernel.launch(((tile_count + 63) // 64) * 64)
 
     def set_candidates(self, candidates):
-        self._write(self._candidates, np.asarray(candidates, np.float32).tobytes())
+        values = np.asarray(candidates, np.float32).reshape(-1)
+        if not values.size:
+            raise ValueError("At least one roughness candidate is required")
+        if values.size > 20:
+            raise ValueError("At most 20 roughness candidates are supported")
+        self._write(self._candidates, values)
         _finish(self._cl, self._queue)
 
     def set_params(
@@ -2078,7 +2291,7 @@ class Optimizer(_OpenCLProgram):
             ],
             np.float32,
         )
-        self._write(self._params, params.tobytes())
+        self._write(self._params, params)
         _finish(self._cl, self._queue)
 
     def optimize_tile(
@@ -2185,22 +2398,36 @@ def _image_to_array(image):
     dtype = _IMAGE_DTYPES.get(image.data_type, np.uint8)
     pixels = image.width * image.height
     data = np.frombuffer(image.tostring(), dtype=dtype)
-    channels = data.size // pixels if pixels else 0
+    if not pixels or data.size % pixels:
+        raise RuntimeError(
+            f"Image data is not a whole number of pixels: {image.width}x{image.height}"
+        )
+    channels = data.size // pixels
     return data.reshape(image.height, image.width, channels)
 
 
 def _load_photo(camera):
-    array = _image_to_array(camera.photo.image())
+    image = camera.photo.image()
+    if image is None:
+        raise RuntimeError("Photo image is missing")
+    array = _image_to_array(image)
     maximum = _IMAGE_MAX.get(array.dtype.type, 1.0)
     if array.shape[2] == 1:
         array = np.repeat(array, 3, axis=2)
+    elif array.shape[2] < 3:
+        raise RuntimeError(f"Photo has {array.shape[2]} channels, expected 3")
     return array[:, :, :3].astype(np.float32) / maximum
 
 
 def _render_depth(model, camera):
-    array = _image_to_array(
-        model.renderDepth(camera.transform, camera.sensor.calibration)
-    )
+    image = model.renderDepth(camera.transform, camera.sensor.calibration)
+    if image is None:
+        raise RuntimeError("renderDepth returned no image")
+    array = _image_to_array(image)
+    if array.shape[2] < 2:
+        raise RuntimeError(
+            f"Depth image has {array.shape[2]} channels, expected 2"
+        )
     return array[:, :, :2].astype(np.float32)
 
 
@@ -2253,9 +2480,11 @@ def _gather(
 ):
     pixel_count = size * size
     if not cameras:
-        return None, None
-    flat_positions = positions.reshape(-1, 3).astype(np.float32)
-    flat_normals = normals.reshape(-1, 3).astype(np.float32)
+        return None, None, None, None
+    flat_positions = np.ascontiguousarray(
+        positions.reshape(-1, 3), dtype=np.float32
+    )
+    flat_normals = np.ascontiguousarray(normals.reshape(-1, 3), dtype=np.float32)
     radius = _bounds_radius(flat_positions)
     intensity = light_multiplier * radius * radius
     print(
@@ -2264,8 +2493,10 @@ def _gather(
     )
     image_lights = np.zeros((len(cameras), 7), np.float32)
     gatherer = WitnessGatherer(device, pixel_count, max_witnesses)
+    gathered = 0
+    persistent_bytes = sum(_witness_buffer_sizes(pixel_count, max_witnesses))
     try:
-        gatherer.set_geometry(flat_positions.tobytes(), flat_normals.tobytes())
+        gatherer.set_geometry(flat_positions, flat_normals)
         for camera_number, camera in enumerate(cameras, start=1):
             _check_cancel(cancel)
             started = time.time()
@@ -2277,17 +2508,30 @@ def _gather(
                 )
             calibration = camera.sensor.calibration
             cam_w, cam_h = int(calibration.width), int(calibration.height)
-            lut, lut_grid, lut_smin, lut_sspan, lut_tmin, lut_tspan = _projection_lut(
-                camera
-            )
-            depth = _render_depth(model, camera)
-            photo = _load_photo(camera)
-            if photo.shape[0] != cam_h or photo.shape[1] != cam_w:
+            try:
+                photo = _load_photo(camera)
+                depth = _render_depth(model, camera)
+            except RuntimeError as error:
+                print(
+                    f"Gather {camera_number}/{len(cameras)}: {label}: {error}, skipping",
+                    flush=True,
+                )
+                continue
+            if photo.shape[:2] != (cam_h, cam_w):
                 print(
                     f"Gather {camera_number}/{len(cameras)}: {label}: photo {photo.shape[1]}x{photo.shape[0]} != calibration {cam_w}x{cam_h}, skipping",
                     flush=True,
                 )
                 continue
+            if depth.shape[:2] != (cam_h, cam_w):
+                print(
+                    f"Gather {camera_number}/{len(cameras)}: {label}: depth {depth.shape[1]}x{depth.shape[0]} != calibration {cam_w}x{cam_h}, skipping",
+                    flush=True,
+                )
+                continue
+            lut, lut_grid, lut_smin, lut_sspan, lut_tmin, lut_tspan = _projection_lut(
+                camera, cancel
+            )
             cam_pos, right, up, forward = _camera_axes(camera)
             light_pos = _light_position(cam_pos, right, up, forward, light_offset)
             image_lights[camera_number - 1, 0:3] = cam_pos
@@ -2324,6 +2568,11 @@ def _gather(
                 ],
                 np.float32,
             )
+            _check_allocation(
+                device,
+                [lut.nbytes, depth.nbytes, photo.nbytes, params.nbytes],
+                existing=persistent_bytes,
+            )
             gatherer.run_camera(
                 lut,
                 lut_grid,
@@ -2335,13 +2584,22 @@ def _gather(
                 camera_number - 1,
                 occlusion_radius,
             )
+            gathered += 1
             print(
                 f"Gather {camera_number}/{len(cameras)}: {label} ({time.time() - started:.2f}s)",
                 flush=True,
             )
+        if gathered == 0:
+            raise RuntimeError(
+                "No camera could be gathered; check the photos and camera calibration."
+            )
         if report is not None:
             report(1.0, "Gathering witnesses")
         coverage = gatherer.coverage().reshape(size, size)
+        if not np.any(coverage > 0.0):
+            raise RuntimeError(
+                "No texel received any witness; check the model UVs and camera coverage."
+            )
         pool = gatherer.read_pool()
         counts = np.minimum(gatherer.read_counts(), np.uint32(max_witnesses))
         return coverage, image_lights, pool, counts
@@ -2390,6 +2648,7 @@ def _run_pass(
             dispatched += 1
             if on_dispatch is not None:
                 on_dispatch(dispatched, total, tile_start, count, subpass)
+            _check_cancel(cancel)
     return dispatched, tiles
 
 
@@ -2413,12 +2672,12 @@ def _run_build(
     optimizer = Optimizer(device, texel_count, dialog.max_witnesses)
     try:
         optimizer.set_scene(
-            positions.reshape(-1, 3).astype(np.float32),
-            normals.reshape(-1, 3).astype(np.float32),
-            tangents.reshape(-1, 3).astype(np.float32),
-            image_lights.astype(np.float32),
+            np.ascontiguousarray(positions.reshape(-1, 3), dtype=np.float32),
+            np.ascontiguousarray(normals.reshape(-1, 3), dtype=np.float32),
+            np.ascontiguousarray(tangents.reshape(-1, 3), dtype=np.float32),
+            np.ascontiguousarray(image_lights, dtype=np.float32),
             pool,
-            counts.astype(np.uint32),
+            np.ascontiguousarray(counts, dtype=np.uint32),
         )
         optimizer.set_candidates(candidates)
         optimizer.set_params(
@@ -2484,14 +2743,23 @@ def _run_build(
                 refinement_progress,
                 cancel=cancel,
             )
+        _check_cancel(cancel)
         print(f"Build finished in {time.time() - started:.1f}s", flush=True)
         return optimizer.read_maps()
     finally:
         optimizer.destroy()
 
 
-def _save_discovery_maps(
-    out_dir, size, albedo, roughness, metallic, normal_map, errors, coverage=None
+def _discovery_map_files(
+    out_dir,
+    size,
+    albedo,
+    roughness,
+    metallic,
+    normal_map,
+    errors,
+    coverage=None,
+    extra=(),
 ):
     files = [
         (
@@ -2519,7 +2787,34 @@ def _save_discovery_maps(
         files.append(
             (os.path.join(out_dir, "witness_coverage.png"), _as_rgb(coverage))
         )
-    _save_png_set(files)
+    files.extend(extra)
+    return files
+
+
+def _save_discovery_maps(
+    out_dir,
+    size,
+    albedo,
+    roughness,
+    metallic,
+    normal_map,
+    errors,
+    coverage=None,
+    extra=(),
+):
+    _save_png_set(
+        _discovery_map_files(
+            out_dir,
+            size,
+            albedo,
+            roughness,
+            metallic,
+            normal_map,
+            errors,
+            coverage,
+            extra,
+        )
+    )
     print("PBR textures saved to: " + out_dir)
 
 
@@ -2649,12 +2944,12 @@ class _LightFitter:
         )
         self.optimizer = Optimizer(self.device, res * res, self.dialog.max_witnesses)
         self.optimizer.set_scene(
-            self.positions.reshape(-1, 3).astype(np.float32),
-            self.normals.reshape(-1, 3).astype(np.float32),
-            self.tangents.reshape(-1, 3).astype(np.float32),
+            np.ascontiguousarray(self.positions.reshape(-1, 3), dtype=np.float32),
+            np.ascontiguousarray(self.normals.reshape(-1, 3), dtype=np.float32),
+            np.ascontiguousarray(self.tangents.reshape(-1, 3), dtype=np.float32),
             _image_lights(self.cameras, self.multiplier, self.offset, self.radius),
             pool,
-            counts.astype(np.uint32),
+            np.ascontiguousarray(counts, dtype=np.uint32),
         )
         self.optimizer.set_candidates(self.candidates)
         self.optimizer.set_params(
@@ -2877,14 +3172,17 @@ class ProgressDialog(QtWidgets.QDialog):
         self._pump()
 
     def closeEvent(self, event):
-        if not self._done:
-            self._on_cancel()
-        super().closeEvent(event)
+        if self._done:
+            super().closeEvent(event)
+            return
+        self._on_cancel()
+        event.ignore()
 
     def reject(self):
-        if not self._done:
-            self._on_cancel()
-        super().reject()
+        if self._done:
+            super().reject()
+            return
+        self._on_cancel()
 
     def _on_cancel(self):
         if self._done or self.token.cancelled:
@@ -2928,9 +3226,14 @@ def _progress_session(parent):
     try:
         yield progress
     finally:
-        progress.finish()
-        progress.close()
-        sys.stdout = original_stdout
+        try:
+            progress.finish()
+        finally:
+            try:
+                progress.close()
+            finally:
+                sys.stdout = original_stdout
+                progress.deleteLater()
 
 
 def _power_combo(values, default):
@@ -3303,14 +3606,15 @@ class BakeDialog(QtWidgets.QDialog):
         }
 
     def apply_settings(self, data):
-        if not data:
+        if not isinstance(data, dict) or not data:
             return
 
         def number(key):
             try:
-                return float(data[key])
+                value = float(data[key])
             except (KeyError, TypeError, ValueError):
                 return None
+            return value if math.isfinite(value) else None
 
         def select(combo, key):
             if key in data:
@@ -3499,7 +3803,18 @@ class BakeDialog(QtWidgets.QDialog):
             for value in self.candidates_edit.text().replace(";", ",").split(",")
             if value.strip()
         ]
-        return [float(value) for value in values]
+        candidates = []
+        for value in values:
+            try:
+                candidate = float(value)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid roughness candidate: {value!r}"
+                ) from None
+            if not math.isfinite(candidate):
+                raise ValueError(f"Invalid roughness candidate: {value!r}")
+            candidates.append(candidate)
+        return candidates
 
     @property
     def light_offset(self):
@@ -3542,6 +3857,17 @@ def _camera_labels(chunk):
     ]
 
 
+def _max_camera_pixels(cameras):
+    maximum = 0
+    for camera in cameras:
+        try:
+            calibration = camera.sensor.calibration
+            maximum = max(maximum, int(calibration.width) * int(calibration.height))
+        except Exception:
+            continue
+    return maximum
+
+
 def _apply_uv_settings(chunk, model, dialog):
     if not dialog.rebuild_uv:
         return len(model.tex_vertices) > 0
@@ -3560,6 +3886,41 @@ def _apply_uv_settings(chunk, model, dialog):
     return len(model.tex_vertices) > 0
 
 
+def _discard_model_copy(chunk, copy, previous_active):
+    try:
+        chunk.remove([copy])
+    except Exception:
+        traceback.print_exc()
+    try:
+        chunk.model = previous_active
+    except Exception:
+        traceback.print_exc()
+
+
+def _offer_project_save(parent, document):
+    answer = QtWidgets.QMessageBox.question(
+        parent,
+        "Build PBR textures",
+        "The model's UV map was rebuilt in a new model.\n\n"
+        "Save the project before the maps are written so they stay in sync?",
+        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        QtWidgets.QMessageBox.No,
+    )
+    if answer != QtWidgets.QMessageBox.Yes:
+        print("Build cancelled: the project was not saved.", flush=True)
+        return False
+    try:
+        document.save()
+    except Exception:
+        traceback.print_exc()
+        Metashape.app.messageBox(
+            "The project could not be saved:\n\n" + traceback.format_exc()
+        )
+        return False
+    print("Project saved with the rebuilt UV model.", flush=True)
+    return True
+
+
 LIGHT_META_KEYS = (
     "LightMultiplier",
     "LightOffsetX",
@@ -3568,41 +3929,102 @@ LIGHT_META_KEYS = (
     "Ambient",
 )
 
+BUILD_SETTINGS_KEY = "BuildSettings"
+
 
 def _light_key(chunk, name):
     return f"PBR/{chunk.key}/{name}"
+
+
+def _finite_float(value, default):
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
+def _meta_float(meta, key, default):
+    try:
+        value = meta[key]
+    except KeyError:
+        return default
+    return _finite_float(value, default)
 
 
 def _load_light_settings(document, chunk):
     settings = {"multiplier": 10.0, "offset": (0.0, 0.0, 0.0), "ambient": 0.0}
     meta = document.meta
     keys = [_light_key(chunk, name) for name in LIGHT_META_KEYS]
-    try:
-        if keys[0] in meta:
-            settings["multiplier"] = float(meta[keys[0]])
-        if keys[1] in meta:
-            settings["offset"] = (
-                float(meta[keys[1]]),
-                float(meta[keys[2]]),
-                float(meta[keys[3]]),
-            )
-        if keys[4] in meta:
-            settings["ambient"] = float(meta[keys[4]])
-    except (KeyError, ValueError):
-        pass
+    settings["multiplier"] = _meta_float(meta, keys[0], settings["multiplier"])
+    settings["offset"] = (
+        _meta_float(meta, keys[1], 0.0),
+        _meta_float(meta, keys[2], 0.0),
+        _meta_float(meta, keys[3], 0.0),
+    )
+    settings["ambient"] = _meta_float(meta, keys[4], settings["ambient"])
     return settings
 
 
-def _store_light_settings(document, chunk, multiplier, offset, ambient):
+def _meta_snapshot(meta, keys):
+    previous = {}
+    for key in keys:
+        try:
+            present = key in meta
+            previous[key] = (present, meta[key] if present else None)
+        except Exception:
+            previous[key] = (False, None)
+    return previous
+
+
+def _restore_meta(meta, snapshot):
+    for key, (present, old_value) in snapshot.items():
+        try:
+            if present:
+                meta[key] = old_value
+            else:
+                del meta[key]
+        except Exception:
+            pass
+
+
+def _update_meta(document, updates):
     meta = document.meta
-    meta[_light_key(chunk, LIGHT_META_KEYS[0])] = f"{multiplier:.6f}"
-    meta[_light_key(chunk, LIGHT_META_KEYS[1])] = f"{offset[0]:.6f}"
-    meta[_light_key(chunk, LIGHT_META_KEYS[2])] = f"{offset[1]:.6f}"
-    meta[_light_key(chunk, LIGHT_META_KEYS[3])] = f"{offset[2]:.6f}"
-    meta[_light_key(chunk, LIGHT_META_KEYS[4])] = f"{ambient:.6f}"
+    previous = _meta_snapshot(meta, updates)
+    try:
+        for key, value in updates.items():
+            meta[key] = value
+    except BaseException:
+        _restore_meta(meta, previous)
+        raise
 
 
-BUILD_SETTINGS_KEY = "BuildSettings"
+def _light_setting_updates(chunk, multiplier, offset, ambient):
+    return {
+        _light_key(chunk, LIGHT_META_KEYS[0]): f"{multiplier:.6f}",
+        _light_key(chunk, LIGHT_META_KEYS[1]): f"{offset[0]:.6f}",
+        _light_key(chunk, LIGHT_META_KEYS[2]): f"{offset[1]:.6f}",
+        _light_key(chunk, LIGHT_META_KEYS[3]): f"{offset[2]:.6f}",
+        _light_key(chunk, LIGHT_META_KEYS[4]): f"{ambient:.6f}",
+    }
+
+
+def _build_setting_update(chunk, settings):
+    try:
+        payload = json.dumps(settings)
+    except (TypeError, ValueError) as error:
+        print(f"Could not serialize build settings ({error})")
+        return {}
+    return {_light_key(chunk, BUILD_SETTINGS_KEY): payload}
+
+
+def _store_settings(document, chunk, multiplier, offset, ambient, settings):
+    updates = _light_setting_updates(chunk, multiplier, offset, ambient)
+    updates.update(_build_setting_update(chunk, settings))
+    meta = document.meta
+    previous = _meta_snapshot(meta, updates)
+    _update_meta(document, updates)
+    return previous
 
 
 def _load_build_settings(document, chunk):
@@ -3611,25 +4033,100 @@ def _load_build_settings(document, chunk):
     if key not in meta:
         return None
     try:
-        return json.loads(meta[key])
+        settings = json.loads(meta[key])
     except (TypeError, ValueError):
         return None
+    return settings if isinstance(settings, dict) else None
 
 
-def _store_build_settings(document, chunk, settings):
+def _available_memory_bytes():
+    if os.name == "nt":
+        class MemoryStatus(ctypes.Structure):
+            _fields_ = [
+                ("length", ctypes.c_ulong),
+                ("memory_load", ctypes.c_ulong),
+                ("total_phys", ctypes.c_ulonglong),
+                ("avail_phys", ctypes.c_ulonglong),
+                ("total_page_file", ctypes.c_ulonglong),
+                ("avail_page_file", ctypes.c_ulonglong),
+                ("total_virtual", ctypes.c_ulonglong),
+                ("avail_virtual", ctypes.c_ulonglong),
+                ("avail_extended_virtual", ctypes.c_ulonglong),
+            ]
+
+        status = MemoryStatus()
+        status.length = ctypes.sizeof(status)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return int(status.avail_phys)
+        return None
     try:
-        payload = json.dumps(settings)
-    except (TypeError, ValueError) as error:
-        print(f"Could not serialize build settings ({error})")
-        return
-    document.meta[_light_key(chunk, BUILD_SETTINGS_KEY)] = payload
+        with open("/proc/meminfo", "r", encoding="ascii") as handle:
+            for line in handle:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) * 1024
+    except (OSError, ValueError):
+        pass
+    try:
+        pages = int(os.sysconf("SC_AVPHYS_PAGES"))
+        size = int(os.sysconf("SC_PAGE_SIZE"))
+    except (AttributeError, OSError, ValueError):
+        return None
+    return pages * size if pages > 0 and size > 0 else None
 
 
-def _preflight_build(device, size, cap, tile_pixels):
-    texel_count = size * size
+def _estimated_cpu_bytes(texel_count, cap, export_baked):
+    geometry = texel_count * 3 * 3 * 4
+    result_maps = texel_count * (16 + 4 + 4 + 16 + 16)
     pool = texel_count * cap * WITNESS_WORDS * 4
-    expanded = min(tile_pixels, texel_count) * cap * 7 * 4
-    _check_allocation(device, [pool, expanded])
+    scalars = texel_count * 4 * 2
+    rgb_maps = texel_count * 3 * 4 * 4
+    png_scratch = texel_count * (3 * 4 + 3 + 3)
+    baked = texel_count * 3 * 4 if export_baked else 0
+    return geometry + result_maps + pool + scalars + rgb_maps + png_scratch + baked
+
+
+def _check_cpu_memory(texel_count, cap, export_baked):
+    available = _available_memory_bytes()
+    if available is None:
+        return
+    required = _estimated_cpu_bytes(texel_count, cap, export_baked)
+    if required > available * 0.9:
+        raise RuntimeError(
+            f"Estimated CPU memory ({required / 2**30:.2f} GiB) exceeds 90% of "
+            f"available RAM ({available / 2**30:.2f} GiB). Reduce the resolution "
+            "or the witness count."
+        )
+
+
+def _preflight_build(
+    device,
+    size,
+    cap,
+    tile_pixels,
+    light_count=0,
+    max_camera_pixels=0,
+    export_baked=False,
+):
+    texel_count = size * size
+    _check_cpu_memory(texel_count, cap, export_baked)
+    tile_pixels = min(texel_count, max(1024, tile_pixels))
+    sizes = _optimizer_buffer_sizes(
+        texel_count,
+        cap,
+        cell_start_bytes=_max_spatial_hash_bytes(),
+        light_count=light_count,
+    )
+    sizes.append(tile_pixels * cap * 7 * 4)
+    _check_allocation(device, sizes)
+    if max_camera_pixels:
+        gather_sizes = _witness_buffer_sizes(texel_count, cap)
+        gather_sizes += [
+            max_camera_pixels * 3 * 4,
+            max_camera_pixels * 2 * 4,
+            PROJECTION_LUT_GRID * PROJECTION_LUT_GRID * 2 * 4,
+            26 * 4,
+        ]
+        _check_allocation(device, gather_sizes)
 
 
 def _bake(parent):
@@ -3663,6 +4160,13 @@ def _bake(parent):
         settings=_load_build_settings(document, chunk),
     )
 
+    try:
+        _run_bake(parent, chunk, models, devices, document, dialog)
+    finally:
+        dialog.deleteLater()
+
+
+def _run_bake(parent, chunk, models, devices, document, dialog):
     def run_fit_light():
         model = models[dialog.model_index]
         cameras = [
@@ -3674,6 +4178,11 @@ def _bake(parent):
             Metashape.app.messageBox(
                 "No aligned cameras in the chunk; cannot fit the light."
             )
+            return
+        try:
+            dialog.roughness_candidates
+        except ValueError as error:
+            Metashape.app.messageBox(str(error))
             return
         device = devices[dialog.device_index][0]
         previous_active = chunk.model
@@ -3709,9 +4218,6 @@ def _bake(parent):
                     f"Fit light: multiplier={multiplier:.4f} offset=({offset[0]:.4f},{offset[1]:.4f},{offset[2]:.4f}) "
                     f"error={error:.4f}"
                 )
-                _store_light_settings(
-                    document, chunk, multiplier, offset, dialog.ambient
-                )
         except _Cancelled:
             print("Light fitting cancelled.")
         except Exception:
@@ -3721,12 +4227,17 @@ def _bake(parent):
             )
         finally:
             if copy is not None:
-                chunk.remove([copy])
-                chunk.model = previous_active
+                _discard_model_copy(chunk, copy, previous_active)
 
     dialog.fit_light_button.clicked.connect(run_fit_light)
 
     if not dialog.exec_():
+        return
+
+    try:
+        dialog.roughness_candidates
+    except ValueError as error:
+        Metashape.app.messageBox(str(error))
         return
 
     size = dialog.size
@@ -3734,9 +4245,10 @@ def _bake(parent):
     if not out_dir:
         print("No output folder selected, aborting.")
         return
-    existing = [
-        name for name in OUTPUT_FILES if os.path.exists(os.path.join(out_dir, name))
-    ]
+    expected = [os.path.join(out_dir, name) for name in OUTPUT_FILES]
+    if dialog.export_baked:
+        expected += [os.path.join(out_dir, "baked", name) for name in BAKED_FILES]
+    existing = [path for path in expected if os.path.lexists(path)]
     if existing:
         answer = QtWidgets.QMessageBox.question(
             parent,
@@ -3767,19 +4279,23 @@ def _bake(parent):
 
     device = devices[dialog.device_index][0]
     try:
-        _preflight_build(device, size, dialog.max_witnesses, dialog.tile_pixels)
+        _preflight_build(
+            device,
+            size,
+            dialog.max_witnesses,
+            dialog.tile_pixels,
+            light_count=len(cameras),
+            max_camera_pixels=_max_camera_pixels(cameras),
+            export_baked=dialog.export_baked,
+        )
     except RuntimeError as error:
         Metashape.app.messageBox(str(error))
         return
 
-    _store_light_settings(
-        document, chunk, dialog.light_multiplier, dialog.light_offset, dialog.ambient
-    )
-    _store_build_settings(document, chunk, dialog.collect_settings())
-
     previous_active = chunk.model
     copy = None
     build_model = model
+    success = False
     try:
         if dialog.rebuild_uv:
             copy = model.copy()
@@ -3806,9 +4322,11 @@ def _bake(parent):
                 build_model, size, progress.report, cancel=progress.token
             )
             print(f"Baked {int((~np.isnan(positions[..., 0])).sum())} valid texels")
-
+            baked_files = []
             if dialog.export_baked:
-                _save_baked_maps(out_dir, positions, normals, tangents)
+                baked_files = _baked_map_files(
+                    out_dir, positions, normals, tangents
+                )
 
             print(
                 f"Gathering witnesses from {len(cameras)} cameras at {size}x{size}..."
@@ -3849,20 +4367,87 @@ def _bake(parent):
                 progress.report,
                 cancel=progress.token,
             )
-            _save_discovery_maps(
-                out_dir,
-                size,
-                albedo,
-                roughness,
-                metallic,
-                normal_map,
-                errors,
-                coverage,
-            )
+            _check_cancel(progress.token)
+            if copy is not None:
+                try:
+                    copy.label = f"{model.label or 'Model'} (PBR UV)"
+                except Exception:
+                    pass
+                chunk.model = copy
+        files = _discovery_map_files(
+            out_dir,
+            size,
+            albedo,
+            roughness,
+            metallic,
+            normal_map,
+            errors,
+            coverage,
+            baked_files,
+        )
+        transaction = _StagedPngSet(files)
+        settings_snapshot = None
+        project_saved = False
+        try:
+            if copy is None:
+                transaction.place()
+                transaction.commit()
+                success = True
+                try:
+                    _store_settings(
+                        document,
+                        chunk,
+                        dialog.light_multiplier,
+                        dialog.light_offset,
+                        dialog.ambient,
+                        dialog.collect_settings(),
+                    )
+                except Exception:
+                    traceback.print_exc()
+                    print("Could not store PBR settings in the project.", flush=True)
+            else:
+                try:
+                    settings_snapshot = _store_settings(
+                        document,
+                        chunk,
+                        dialog.light_multiplier,
+                        dialog.light_offset,
+                        dialog.ambient,
+                        dialog.collect_settings(),
+                    )
+                except Exception:
+                    traceback.print_exc()
+                    print("Could not store PBR settings in the project.", flush=True)
+                if not _offer_project_save(parent, document):
+                    if settings_snapshot is not None:
+                        _restore_meta(document.meta, settings_snapshot)
+                    transaction.rollback()
+                    print(
+                        "Build cancelled: output maps were not written because the "
+                        "project was not saved.",
+                        flush=True,
+                    )
+                    return
+                project_saved = True
+                success = True
+                transaction.place()
+                transaction.commit()
+            print("PBR textures saved to: " + out_dir)
+            if dialog.export_baked:
+                print("Baked maps saved to: " + os.path.join(out_dir, "baked"))
+            if copy is not None:
+                print(
+                    f"Rebuilt UV model kept as '{copy.label}'; the project was saved.",
+                    flush=True,
+                )
+        except BaseException:
+            transaction.rollback()
+            if settings_snapshot is not None and not project_saved:
+                _restore_meta(document.meta, settings_snapshot)
+            raise
     finally:
-        if copy is not None:
-            chunk.remove([copy])
-            chunk.model = previous_active
+        if copy is not None and not success:
+            _discard_model_copy(chunk, copy, previous_active)
 
 
 def build_pbr_textures():
